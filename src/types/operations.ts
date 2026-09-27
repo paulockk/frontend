@@ -1,0 +1,5 @@
+export interface CatalogProduct { id: string; sku: string; barcode: string; name: string; category: string; brand: string; costPrice: number; salePrice: number; minimumStock: number; shelfLifeDays: number; locationsCount: number; status: "ACTIVE" | "INACTIVE" | "REVIEW" }
+export interface MovementRecord { id: string; date: string; type: "ENTRY" | "EXIT" | "TRANSFER" | "ADJUSTMENT"; productName: string; sku: string; quantity: number; origin: string | null; destination: string | null; batch: string; user: string; status: "COMPLETED" | "PENDING" }
+export interface StoreLocation { id: string; name: string; type: "WAREHOUSE" | "MARKET" | "VENDING_MACHINE"; address: string; status: "ACTIVE" | "MAINTENANCE"; skuCount: number; stockValue: number; capacity: number; lastSync: string }
+export interface SaleTransaction { id: string; receipt: string; date: string; location: string; items: string; payment: string; total: number; status: "COMPLETED" | "REVERSED" }
+export interface ReportCard { id: string; badge: string; title: string; description: string; metricLabel: string; metric: string; secondaryLabel: string; secondaryMetric: string }
