@@ -6,6 +6,12 @@ import { RouterProvider } from "react-router/dom";
 import AppLayout from "./App";
 import Dashboard from "./pages/Dashboard";
 import Estoque from "./pages/Estoque";
+import Validades from "./pages/Validades";
+import Produtos from "./pages/Produtos";
+import Movimentacoes from "./pages/Movimentacoes";
+import Locais from "./pages/Locais";
+import Vendas from "./pages/Vendas";
+import Relatorios from "./pages/Relatorios";
 
 import "./index.css";
 
@@ -17,6 +23,12 @@ const router = createHashRouter([
       { index: true, Component: Dashboard },
       { path: "dashboard", Component: Dashboard },
       { path: "estoque", Component: Estoque },
+      { path: "validades", Component: Validades },
+      { path: "produtos", Component: Produtos },
+      { path: "movimentacoes", Component: Movimentacoes },
+      { path: "locais", Component: Locais },
+      { path: "vendas", Component: Vendas },
+      { path: "relatorios", Component: Relatorios },
     ],
   },
 ]);
