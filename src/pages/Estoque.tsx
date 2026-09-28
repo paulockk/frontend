@@ -1,9 +1,11 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router";
 import { ArrowLeftRight, Download, RefreshCw } from "lucide-react";
 import { StockFilters } from "../components/stock/StockFilters";
 import { StockSummary } from "../components/stock/StockSummary";
 import { StockTable } from "../components/stock/StockTable";
 import { stockService } from "../services/stock.service";
+import { useLocationFilter } from "../contexts/LocationFilterContext";
 import type {
   StockFilters as Filters,
   StockListResponse,
@@ -20,6 +22,8 @@ const initialFilters: Filters = {
   pageSize: 10,
 };
 export default function Estoque() {
+  const navigate = useNavigate();
+  const { selectedLocationId, selectedLocation, matchesLocation } = useLocationFilter();
   const [filters, setFilters] = useState(initialFilters);
   const [data, setData] = useState<StockListResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,6 +60,16 @@ export default function Estoque() {
     };
   }, [filters]);
   const pagination = data?.pagination;
+  useEffect(() => {
+    if (selectedLocationId === "all") {
+      setFilters((current) => current.locationId === "ALL" ? current : { ...current, locationId: "ALL", page: 1 });
+      return;
+    }
+    if (!selectedLocation || !data?.locations.length) return;
+    const matched = data.locations.find((location) => matchesLocation(location.name));
+    const locationId = matched?.id ?? "__NO_MATCH__";
+    setFilters((current) => current.locationId === locationId ? current : { ...current, locationId, page: 1 });
+  }, [selectedLocationId, selectedLocation, data?.locations, matchesLocation]);
   return (
     <div className="min-w-0 space-y-6 p-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -102,7 +116,7 @@ export default function Estoque() {
           </button>
           <button
             type="button"
-            onClick={() => setFilters((current) => ({ ...current }))}
+            onClick={() => navigate("/movimentacoes")}
             className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
           >
             <ArrowLeftRight className="h-4 w-4" />

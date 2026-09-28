@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useNavigate } from "react-router";
 
 
@@ -8,11 +9,14 @@ import { ExpiringLots } from "../components/dashboard/ExpringLots/ExpiringLots";
 import { LocationCapacity } from "../components/dashboard/LocationCapacity/LocationCapacity";
 
 import { RecentMovements } from "../components/dashboard/RecentMovements/RecentMovements";
+import { SalesInsightsCarousel } from "../components/dashboard/SalesInsightsCarousel";
 
 import { useDashboard } from "../hooks/useDashboard";
+import { useLocationFilter } from "../contexts/LocationFilterContext";
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { matchesLocation, selectedLocation, selectedLocationId } = useLocationFilter();
 
   const {
     data,
@@ -20,6 +24,27 @@ export default function Dashboard() {
     error,
     refresh,
   } = useDashboard();
+  const visibleLots = useMemo(() => data?.expiringLots.filter((lot) => matchesLocation(lot.locationName)) ?? [], [data?.expiringLots, matchesLocation]);
+  const visibleLocations = useMemo(() => data?.locations.filter((location) => matchesLocation(location.name)) ?? [], [data?.locations, matchesLocation]);
+  const visibleMovements = useMemo(() => data?.recentMovements.filter((movement) => matchesLocation(movement.origin) || matchesLocation(movement.destination)) ?? [], [data?.recentMovements, matchesLocation]);
+  const visibleSummary = useMemo(() => {
+    if (!data) return null;
+    if (selectedLocationId === "all") return data.summary;
+    return data.locationSummaries?.find((item) => matchesLocation(item.locationName))?.summary ?? null;
+  }, [data, matchesLocation, selectedLocationId]);
+  const visibleInsights = useMemo(() => {
+    if (!data?.salesInsights) return undefined;
+    if (selectedLocationId === "all") return data.salesInsights;
+    const local = data.salesInsights.byLocation?.find((item) => matchesLocation(item.locationName));
+    if (!local) return undefined;
+    return {
+      ...data.salesInsights,
+      bestSellers: local.bestSellers,
+      slowMovers: local.slowMovers,
+      weeklyTrend: local.weeklyTrend,
+      locationSales: data.salesInsights.locationSales.filter((item) => matchesLocation(item.locationName)),
+    };
+  }, [data, matchesLocation, selectedLocationId]);
 
   if (loading) {
     return (
@@ -64,26 +89,27 @@ export default function Dashboard() {
   return (
     <div className="min-w-0 space-y-6 p-6">
 
-      <KpiCards summary={data.summary} />
+      <KpiCards summary={visibleSummary} />
+      {selectedLocation && <p className="-mt-3 text-xs text-slate-500">Indicadores e gráficos para: <strong className="text-slate-700">{selectedLocation.name}</strong>.</p>}
 
-      <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2">
         <ExpiringLots
-          lots={data.expiringLots}
+          lots={visibleLots}
           onViewAll={() => {
             navigate("/validades");
           }}
-          onPrioritize={(lot) => {
-            console.log("Priorizar lote", lot.id);
+          onPrioritize={() => {
+            navigate("/validades");
           }}
         />
 
-        <LocationCapacity
-          locations={data.locations}
-        />
+        <SalesInsightsCarousel insights={visibleInsights} />
+
+        <LocationCapacity locations={visibleLocations} />
       </div>
 
       <RecentMovements
-        movements={data.recentMovements}
+        movements={visibleMovements}
         onViewAll={() => {
           navigate("/movimentacoes");
         }}
