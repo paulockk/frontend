@@ -10,7 +10,7 @@ import type { DashboardSummary } from "../../../types/dashboard";
 import { KpiCard } from "./KpiCard";
 
 interface KpiCardsProps {
-  summary: DashboardSummary;
+  summary: DashboardSummary | null;
 }
 
 export function KpiCards({ summary }: KpiCardsProps) {
@@ -18,8 +18,8 @@ export function KpiCards({ summary }: KpiCardsProps) {
     {
       id: "products",
       title: "Produtos Cadastrados",
-      value: summary.totalProducts.toLocaleString("pt-BR"),
-      subtext: `${summary.totalLocations} locais ativos`,
+      value: summary?.totalProducts.toLocaleString("pt-BR") ?? "—",
+      subtext: summary ? `${summary.totalLocations} locais ativos` : "Sem indicadores para este local",
       icon: <Package className="h-4 w-4" />,
       color: "blue" as const,
     },
@@ -27,8 +27,8 @@ export function KpiCards({ summary }: KpiCardsProps) {
     {
       id: "expiry",
       title: "Validade Crítica",
-      value: `${summary.criticalExpiryLots} lotes`,
-      subtext: formatCurrency(summary.criticalExpiryValue),
+      value: summary ? `${summary.criticalExpiryLots} lotes` : "—",
+      subtext: summary ? formatCurrency(summary.criticalExpiryValue) : "Sem dados por local",
       icon: <CalendarHeart className="h-4 w-4" />,
       color: "red" as const,
     },
@@ -36,7 +36,7 @@ export function KpiCards({ summary }: KpiCardsProps) {
     {
       id: "stock",
       title: "Estoque em Alerta",
-      value: `${summary.lowStockProducts} SKUs`,
+      value: summary ? `${summary.lowStockProducts} SKUs` : "—",
       subtext: "Abaixo do estoque mínimo",
       icon: <AlertTriangle className="h-4 w-4" />,
       color: "amber" as const,
@@ -45,8 +45,8 @@ export function KpiCards({ summary }: KpiCardsProps) {
     {
       id: "sales",
       title: "Vendas na Semana",
-      value: summary.weeklySalesQuantity.toLocaleString("pt-BR"),
-      subtext: formatQuantityLabel(summary.weeklySalesAmount),
+      value: summary?.weeklySalesQuantity.toLocaleString("pt-BR") ?? "—",
+      subtext: summary ? formatQuantityLabel(summary.weeklySalesAmount) : "Sem dados por local",
       icon: <TrendingUp className="h-4 w-4" />,
       color: "emerald" as const,
     },

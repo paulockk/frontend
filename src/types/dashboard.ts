@@ -91,6 +91,20 @@ export interface DashboardResponse {
 
   recentMovements: DashboardMovement[];
 
+  salesInsights?: {
+    bestSellers: { productName: string; quantity: number }[];
+    slowMovers: { productName: string; quantity: number }[];
+    locationSales: { locationName: string; amount: number }[];
+    weeklyTrend: { label: string; quantity: number }[];
+    byLocation?: {
+      locationName: string;
+      bestSellers: { productName: string; quantity: number }[];
+      slowMovers: { productName: string; quantity: number }[];
+      weeklyTrend: { label: string; quantity: number }[];
+    }[];
+  };
+  locationSummaries?: { locationName: string; summary: DashboardSummary }[];
+
   integrations?: {
     id: string;
     provider: string;

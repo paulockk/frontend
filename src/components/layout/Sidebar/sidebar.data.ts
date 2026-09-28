@@ -5,9 +5,7 @@ import {
   ArrowLeftRight,
   MapPin,
   ShoppingCart,
-  Bot,
   BarChart3,
-  Users,
   Settings,
 } from "lucide-react";
 
@@ -53,24 +51,11 @@ export const DEFAULT_NAV_ITEMS: NavItem[] = [
     label: "Vendas",
     icon: ShoppingCart,
   },
-  {
-    id: "vending-machines",
-    label: "Vending Machines",
-    icon: Bot,
-    badge: {
-      variant: "dot",
-    },
-  },
+
   {
     id: "relatorios",
     label: "Relatórios",
     icon: BarChart3,
-  },
-  {
-    id: "usuarios",
-    label: "Usuários",
-    icon: Users,
-    permission: "usuarios.visualizar",
   },
   {
     id: "configuracoes",

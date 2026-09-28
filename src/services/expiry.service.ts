@@ -1,5 +1,5 @@
 import { apiFetch } from "./api";
-import { getExpiryMock } from "./mocks/expiry.mock";
+import { getExpiryMock, runFifoMock, transferExpiryMock, writeOffExpiryMock } from "./mocks/expiry.mock";
 import type { ExpiryFilters, ExpiryListResponse } from "../types/expiry";
 
 const USE_MOCK = true;
@@ -11,15 +11,15 @@ export const expiryService = {
     return apiFetch<ExpiryListResponse>(`/expiry?${queryString(filters)}`);
   },
   async writeOff(lotId: string): Promise<void> {
-    if (USE_MOCK) return;
+    if (USE_MOCK) { writeOffExpiryMock(lotId); return; }
     await apiFetch<void>(`/expiry/${lotId}/write-off`, { method: "POST" });
   },
   async runFifo(): Promise<void> {
-    if (USE_MOCK) return;
+    if (USE_MOCK) { runFifoMock(); return; }
     await apiFetch<void>("/expiry/fifo", { method: "POST" });
   },
   async transferFifo(lotId: string): Promise<void> {
-    if (USE_MOCK) return;
+    if (USE_MOCK) { transferExpiryMock(lotId); return; }
     await apiFetch<void>(`/expiry/${lotId}/transfer-fifo`, { method: "POST" });
   },
 };

@@ -39,8 +39,41 @@ const reports: ReportCard[] = [
 export const operationsService = {
   async listProducts(): Promise<CatalogProduct[]> { return USE_MOCK ? products : apiFetch<CatalogProduct[]>("/products"); },
   async createProduct(product: CatalogProduct, initialStockCD: number): Promise<CatalogProduct> {
-    if (USE_MOCK) return { ...product, id: `p-${Date.now()}` };
+    if (USE_MOCK) {
+      const created = { ...product, id: `p-${Date.now()}` };
+      products.unshift(created);
+      return created;
+    }
     return apiFetch<CatalogProduct>("/products", { method: "POST", body: JSON.stringify({ ...product, initialStockCD }) });
+  },
+  async updateProduct(product: CatalogProduct): Promise<CatalogProduct> {
+    if (USE_MOCK) {
+      const index = products.findIndex((item) => item.id === product.id);
+      if (index >= 0) products[index] = product;
+      return product;
+    }
+    return apiFetch<CatalogProduct>(`/products/${encodeURIComponent(product.id)}`, { method: "PUT", body: JSON.stringify(product) });
+  },
+  async updatePrices(ids: string[], prices: { costPrice?: number; salePrice?: number }): Promise<CatalogProduct[]> {
+    if (USE_MOCK) {
+      return products.filter((item) => ids.includes(item.id)).map((item) => {
+        Object.assign(item, prices);
+        return item;
+      });
+    }
+    return apiFetch<CatalogProduct[]>("/products/prices", { method: "PATCH", body: JSON.stringify({ ids, ...prices }) });
+  },
+  async createMovement(movement: Omit<MovementRecord, "id" | "date" | "user" | "status">): Promise<MovementRecord> {
+    const created: MovementRecord = { ...movement, id: `m-${Date.now()}`, date: new Date().toISOString(), user: "Paulo Roberto", status: "COMPLETED" };
+    if (USE_MOCK) movements.unshift(created);
+    else return apiFetch<MovementRecord>("/stock/movements", { method: "POST", body: JSON.stringify(movement) });
+    return created;
+  },
+  async createLocation(location: Omit<StoreLocation, "id" | "skuCount" | "stockValue" | "lastSync" | "capacity">): Promise<StoreLocation> {
+    const created: StoreLocation = { ...location, id: `l-${Date.now()}`, skuCount: 0, stockValue: 0, capacity: 0, lastSync: "Agora" };
+    if (USE_MOCK) locations.unshift(created);
+    else return apiFetch<StoreLocation>("/locations", { method: "POST", body: JSON.stringify(location) });
+    return created;
   },
   async listMovements(): Promise<MovementRecord[]> { return USE_MOCK ? movements : apiFetch<MovementRecord[]>("/stock/movements"); },
   async listLocations(): Promise<StoreLocation[]> { return USE_MOCK ? locations : apiFetch<StoreLocation[]>("/locations"); },

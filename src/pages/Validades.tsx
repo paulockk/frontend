@@ -4,11 +4,13 @@ import { ExpiryFilters } from "../components/expiry/ExpiryFilters";
 import { ExpirySummary } from "../components/expiry/ExpirySummary";
 import { ExpiryTable } from "../components/expiry/ExpiryTable";
 import { expiryService } from "../services/expiry.service";
+import { useLocationFilter } from "../contexts/LocationFilterContext";
 import type { ExpiryFilters as Filters, ExpiryListResponse, ExpiryLot } from "../types/expiry";
 
 const initialFilters: Filters = { search: "", location: "ALL", category: "ALL", severity: "ALL", page: 1, pageSize: 10 };
 
 export default function Validades() {
+  const { selectedLocationId, selectedLocation, matchesLocation } = useLocationFilter();
   const [filters, setFilters] = useState(initialFilters);
   const [data, setData] = useState<ExpiryListResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,6 +39,15 @@ export default function Validades() {
     finally { setActionBusy(false); }
   };
   const pagination = data?.pagination;
+  useEffect(() => {
+    if (selectedLocationId === "all") {
+      setFilters((current) => current.location === "ALL" ? current : { ...current, location: "ALL", page: 1 });
+      return;
+    }
+    if (!selectedLocation || !data?.locations.length) return;
+    const location = data.locations.find((name) => matchesLocation(name)) ?? "__NO_MATCH__";
+    setFilters((current) => current.location === location ? current : { ...current, location, page: 1 });
+  }, [selectedLocationId, selectedLocation, data?.locations, matchesLocation]);
   const onWriteOff = (lot: ExpiryLot) => void runAction(() => expiryService.writeOff(lot.id), "Solicitação de baixa registrada.");
   const onTransfer = (lot: ExpiryLot) => void runAction(() => expiryService.transferFifo(lot.id), "Solicitação de transferência PEPS registrada.");
 

@@ -2,9 +2,11 @@ import { Outlet } from "react-router";
 
 import { Sidebar } from "./components/layout/Sidebar/Sidebar";
 import { Header } from "./components/layout/Header/Header";
+import { LocationFilterProvider } from "./contexts/LocationFilterContext";
 
 export default function AppLayout() {
   return (
+    <LocationFilterProvider>
     <div className="flex h-screen w-full overflow-hidden bg-gray-50">
       {/* Sidebar fixa */}
       <aside className="w-64 min-w-[16rem] shrink-0">
@@ -22,5 +24,6 @@ export default function AppLayout() {
         </main>
       </div>
     </div>
+    </LocationFilterProvider>
   );
 }

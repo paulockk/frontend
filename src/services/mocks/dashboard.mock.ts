@@ -130,6 +130,63 @@ export const dashboardMock: DashboardResponse = {
       createdAt: "2026-09-26T08:40:00",
     },
   ],
+
+  salesInsights: {
+    bestSellers: [
+      { productName: "Água Mineral 500ml", quantity: 126 },
+      { productName: "Coca-Cola 350ml", quantity: 98 },
+      { productName: "Café pronto 250ml", quantity: 74 },
+      { productName: "Barra de cereal", quantity: 51 },
+    ],
+    slowMovers: [
+      { productName: "Suco de Laranja 1L", quantity: 4 },
+      { productName: "Biscoito integral", quantity: 7 },
+      { productName: "Chá gelado 1L", quantity: 9 },
+      { productName: "Mix de castanhas", quantity: 11 },
+    ],
+    locationSales: [
+      { locationName: "Mercado Principal", amount: 8420 },
+      { locationName: "Máquina 01", amount: 5360 },
+      { locationName: "Mercadinho Norte", amount: 4190 },
+      { locationName: "Estoque", amount: 0 },
+    ],
+    weeklyTrend: [
+      { label: "Seg", quantity: 42 },
+      { label: "Ter", quantity: 58 },
+      { label: "Qua", quantity: 47 },
+      { label: "Qui", quantity: 73 },
+      { label: "Sex", quantity: 65 },
+      { label: "Sáb", quantity: 91 },
+      { label: "Dom", quantity: 38 },
+    ],
+    byLocation: [
+      {
+        locationName: "Mercado Principal",
+        bestSellers: [{ productName: "Água Mineral 500ml", quantity: 58 }, { productName: "Coca-Cola 350ml", quantity: 47 }, { productName: "Café pronto 250ml", quantity: 32 }],
+        slowMovers: [{ productName: "Suco de Laranja 1L", quantity: 2 }, { productName: "Biscoito integral", quantity: 3 }, { productName: "Mix de castanhas", quantity: 4 }],
+        weeklyTrend: [{ label: "Seg", quantity: 25 }, { label: "Ter", quantity: 30 }, { label: "Qua", quantity: 24 }, { label: "Qui", quantity: 38 }, { label: "Sex", quantity: 35 }, { label: "Sáb", quantity: 49 }, { label: "Dom", quantity: 24 }],
+      },
+      {
+        locationName: "Máquina 01",
+        bestSellers: [{ productName: "Água Mineral 500ml", quantity: 31 }, { productName: "Coca-Cola 350ml", quantity: 28 }, { productName: "Barra de cereal", quantity: 14 }],
+        slowMovers: [{ productName: "Suco de Laranja 1L", quantity: 0 }, { productName: "Chá gelado 1L", quantity: 1 }, { productName: "Mix de castanhas", quantity: 2 }],
+        weeklyTrend: [{ label: "Seg", quantity: 8 }, { label: "Ter", quantity: 13 }, { label: "Qua", quantity: 10 }, { label: "Qui", quantity: 17 }, { label: "Sex", quantity: 15 }, { label: "Sáb", quantity: 12 }, { label: "Dom", quantity: 5 }],
+      },
+      {
+        locationName: "Mercadinho Norte",
+        bestSellers: [{ productName: "Coca-Cola 350ml", quantity: 23 }, { productName: "Água Mineral 500ml", quantity: 22 }, { productName: "Barra de cereal", quantity: 16 }],
+        slowMovers: [{ productName: "Biscoito integral", quantity: 1 }, { productName: "Suco de Laranja 1L", quantity: 2 }, { productName: "Chá gelado 1L", quantity: 3 }],
+        weeklyTrend: [{ label: "Seg", quantity: 9 }, { label: "Ter", quantity: 15 }, { label: "Qua", quantity: 13 }, { label: "Qui", quantity: 18 }, { label: "Sex", quantity: 15 }, { label: "Sáb", quantity: 30 }, { label: "Dom", quantity: 12 }],
+      },
+      { locationName: "Estoque", bestSellers: [], slowMovers: [], weeklyTrend: [] },
+    ],
+  },
+  locationSummaries: [
+    { locationName: "Mercado Principal", summary: { totalProducts: 82, totalLocations: 1, criticalExpiryLots: 3, criticalExpiryValue: 65000, lowStockProducts: 8, weeklySalesQuantity: 165, weeklySalesAmount: 842000 } },
+    { locationName: "Máquina 01", summary: { totalProducts: 18, totalLocations: 1, criticalExpiryLots: 1, criticalExpiryValue: 18000, lowStockProducts: 3, weeklySalesQuantity: 80, weeklySalesAmount: 536000 } },
+    { locationName: "Mercadinho Norte", summary: { totalProducts: 62, totalLocations: 1, criticalExpiryLots: 1, criticalExpiryValue: 39900, lowStockProducts: 4, weeklySalesQuantity: 97, weeklySalesAmount: 489500 } },
+    { locationName: "Estoque", summary: { totalProducts: 45, totalLocations: 1, criticalExpiryLots: 2, criticalExpiryValue: 32000, lowStockProducts: 2, weeklySalesQuantity: 0, weeklySalesAmount: 0 } },
+  ],
 };
 
 

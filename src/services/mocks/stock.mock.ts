@@ -49,11 +49,11 @@ export function getStockMock(filters: StockFilters): StockListResponse {
   return {
     items: filtered.slice(start, start + filters.pageSize),
     summary: {
-      totalUnits: items.reduce((sum, item) => sum + item.stock.quantity, 0),
-      totalCost: items.reduce((sum, item) => sum + item.stock.quantity * item.product.purchasePrice, 0),
-      normalProducts: items.filter((item) => item.status === "NORMAL").length,
-      lowStockProducts: items.filter((item) => item.status === "LOW").length,
-      outOfStockProducts: items.filter((item) => item.status === "OUT_OF_STOCK").length,
+      totalUnits: filtered.reduce((sum, item) => sum + item.stock.quantity, 0),
+      totalCost: filtered.reduce((sum, item) => sum + item.stock.quantity * item.product.purchasePrice, 0),
+      normalProducts: filtered.filter((item) => item.status === "NORMAL").length,
+      lowStockProducts: filtered.filter((item) => item.status === "LOW").length,
+      outOfStockProducts: filtered.filter((item) => item.status === "OUT_OF_STOCK").length,
     },
     locations, categories: category,
     pagination: { page: filters.page, pageSize: filters.pageSize, totalItems: filtered.length, totalPages: Math.max(1, Math.ceil(filtered.length / filters.pageSize)) },

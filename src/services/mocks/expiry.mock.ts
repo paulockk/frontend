@@ -34,11 +34,25 @@ export function getExpiryMock(filters: ExpiryFilters): ExpiryListResponse {
   return {
     items: filtered.slice(start, start + filters.pageSize),
     summary: severities.map((severity) => {
-      const group = lots.filter((lot) => lot.severity === severity);
+      const group = filtered.filter((lot) => lot.severity === severity);
       return { severity, lotCount: group.length, totalCost: group.reduce((sum, lot) => sum + lot.totalCost, 0) };
     }),
     locations: [...new Set(lots.map((lot) => lot.location))],
     categories: [...new Set(lots.map((lot) => lot.category))],
     pagination: { page: filters.page, pageSize: filters.pageSize, totalItems: filtered.length, totalPages: Math.max(1, Math.ceil(filtered.length / filters.pageSize)) },
   };
+}
+
+export function writeOffExpiryMock(lotId: string): void {
+  const index = lots.findIndex((lot) => lot.id === lotId);
+  if (index >= 0) lots.splice(index, 1);
+}
+
+export function transferExpiryMock(lotId: string): void {
+  const lot = lots.find((item) => item.id === lotId);
+  if (lot) { lot.location = "CD"; lot.recommendedAction = "Transferido para o CD"; }
+}
+
+export function runFifoMock(): void {
+  lots.sort((a, b) => a.daysRemaining - b.daysRemaining);
 }
