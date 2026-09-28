@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, Download, FileText, ShieldCheck, TrendingUp, AlertTriangle, Package, ArrowLeftRight, ShoppingCart, RefreshCw } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeftRight,
+  ArrowRight,
+  Download,
+  FileText,
+  Package,
+  RefreshCw,
+  ShieldCheck,
+  ShoppingCart,
+  TrendingUp,
+} from "lucide-react";
 import { operationsService } from "../services/operations.service";
 import { expiryService } from "../services/expiry.service";
 import { useLocationFilter } from "../contexts/LocationFilterContext";
@@ -12,8 +23,21 @@ const qtyFormat = new Intl.NumberFormat("pt-BR");
 const dateFormat = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" });
 const selectClass = "rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700";
 
-interface ReportData { products: CatalogProduct[]; locations: StoreLocation[]; movements: MovementRecord[]; sales: SaleTransaction[]; expiryLots: ExpiryLot[]; }
-interface DetailRow { product: CatalogProduct; location: StoreLocation; quantity: number; value: number; expiryDate: string; }
+interface ReportData {
+  products: CatalogProduct[];
+  locations: StoreLocation[];
+  movements: MovementRecord[];
+  sales: SaleTransaction[];
+  expiryLots: ExpiryLot[];
+}
+
+interface DetailRow {
+  product: CatalogProduct;
+  location: StoreLocation;
+  quantity: number;
+  value: number;
+  expiryDate: string;
+}
 
 export default function Relatorios() {
   const [data, setData] = useState<ReportData | null>(null);
@@ -24,28 +48,44 @@ export default function Relatorios() {
   const navigate = useNavigate();
   const { selectedLocationId } = useLocationFilter();
 
-  useEffect(() => { setLocationId(selectedLocationId); }, [selectedLocationId]);
+  // Mantém os relatórios sincronizados com o seletor global de local.
+  useEffect(() => {
+    setLocationId(selectedLocationId);
+  }, [selectedLocationId]);
+
   useEffect(() => {
     let active = true;
-    setLoading(true); setError("");
+    setLoading(true);
+    setError("");
+
+    // Carrega todas as fontes em conjunto para montar os indicadores com a mesma consulta.
     void Promise.all([
-      operationsService.listProducts(), operationsService.listLocations(), operationsService.listMovements(), operationsService.listSales(),
+      operationsService.listProducts(),
+      operationsService.listLocations(),
+      operationsService.listMovements(),
+      operationsService.listSales(),
       expiryService.list({ search: "", location: "ALL", category: "ALL", severity: "ALL", page: 1, pageSize: 500 }),
     ]).then(([products, locations, movements, sales, expiry]) => {
       if (active) setData({ products, locations, movements, sales, expiryLots: expiry.items });
     }).catch((cause: unknown) => {
       if (active) setError(cause instanceof Error ? cause.message : "Não foi possível carregar os relatórios.");
     }).finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, []);
 
   const selectedLocation = data?.locations.find((location) => location.id === locationId);
   const inLocation = (name: string | null | undefined) => locationId === "all" || (!!selectedLocation && name === selectedLocation.name);
+
+  // A seleção de período afeta vendas e movimentações; o estoque permanece como posição atual.
   const cutoff = useMemo(() => {
     if (period === "all") return null;
     const date = new Date(); date.setHours(0, 0, 0, 0); date.setDate(date.getDate() - Number(period)); return date;
   }, [period]);
   const inPeriod = (value: string) => !cutoff || new Date(value) >= cutoff;
+
+  // Transforma o estoque por produto em linhas próprias por local para a tabela e o CSV.
   const scopedDetails = useMemo<DetailRow[]>(() => {
     if (!data) return [];
     const scopedLocations = locationId === "all" ? data.locations : data.locations.filter((location) => location.id === locationId);
@@ -61,6 +101,7 @@ export default function Relatorios() {
   const totalUnits = scopedDetails.reduce((sum, row) => sum + row.quantity, 0);
   const stockValue = scopedDetails.reduce((sum, row) => sum + row.value, 0);
   const productTotals = data?.products.filter((product) => product.status === "ACTIVE").map((product) => ({ product, quantity: scopedDetails.filter((row) => row.product.id === product.id).reduce((sum, row) => sum + row.quantity, 0) })) ?? [];
+  // O mínimo é global; por isso, num local individual só se destaca saldo zerado.
   const lowStock = productTotals.filter(({ product, quantity }) => locationId === "all" ? quantity < product.minimumStock : quantity === 0);
   const unitsBelowMinimum = lowStock.reduce((sum, item) => sum + Math.max(0, item.product.minimumStock - item.quantity), 0);
   const expiring = filteredExpiry.filter((lot) => lot.daysRemaining <= 15);
@@ -79,6 +120,7 @@ export default function Relatorios() {
 
   const exportSummary = () => {
     if (!data) return;
+    // Exporta os mesmos registros filtrados que aparecem na tela.
     const rows: (string | number)[][] = [["Tipo", "Produto / relatório", "Local", "Detalhe", "Quantidade", "Valor", "Data"]];
     rows.push(["Resumo", "Unidades em estoque", locationLabel, "", totalUnits, stockValue, ""]);
     rows.push(["Resumo", locationId === "all" ? "Produtos abaixo do mínimo" : "Produtos sem estoque no local", locationLabel, "", lowStock.length, "", ""]);
@@ -113,4 +155,22 @@ export default function Relatorios() {
   </div>;
 }
 
-function Kpi({ icon, label, value, sub }: { icon?: ReactNode; label: string; value: string; sub: string }) { return <article className="rounded-xl border border-slate-200 bg-white p-4"><div className="flex items-center justify-between text-xs font-semibold uppercase text-slate-500">{label}<span className="h-4 w-4 text-blue-600">{icon}</span></div><p className="mt-2 text-2xl font-bold text-slate-900">{value}</p><p className="mt-1 text-xs text-slate-400">{sub}</p></article>; }
+interface KpiProps {
+  icon?: ReactNode;
+  label: string;
+  value: string;
+  sub: string;
+}
+
+function Kpi({ icon, label, value, sub }: KpiProps) {
+  return (
+    <article className="rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex items-center justify-between text-xs font-semibold uppercase text-slate-500">
+        {label}
+        <span className="h-4 w-4 text-blue-600">{icon}</span>
+      </div>
+      <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
+      <p className="mt-1 text-xs text-slate-400">{sub}</p>
+    </article>
+  );
+}

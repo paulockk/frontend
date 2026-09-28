@@ -24,12 +24,15 @@ export default function Dashboard() {
     error,
     refresh,
   } = useDashboard();
+
+  // Restringe cada bloco do painel ao local escolhido no seletor global.
   const visibleLots = useMemo(() => data?.expiringLots.filter((lot) => matchesLocation(lot.locationName)) ?? [], [data?.expiringLots, matchesLocation]);
   const visibleLocations = useMemo(() => data?.locations.filter((location) => matchesLocation(location.name)) ?? [], [data?.locations, matchesLocation]);
   const visibleMovements = useMemo(() => data?.recentMovements.filter((movement) => matchesLocation(movement.origin) || matchesLocation(movement.destination)) ?? [], [data?.recentMovements, matchesLocation]);
   const visibleSummary = useMemo(() => {
     if (!data) return null;
     if (selectedLocationId === "all") return data.summary;
+    // Para um local específico, usa o resumo próprio em vez dos totais gerais.
     return data.locationSummaries?.find((item) => matchesLocation(item.locationName))?.summary ?? null;
   }, [data, matchesLocation, selectedLocationId]);
   const visibleInsights = useMemo(() => {

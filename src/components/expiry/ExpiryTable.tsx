@@ -1,9 +1,120 @@
 import type { ExpiryLot } from "../../types/expiry";
-const dateFormat = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeZone: "UTC" });
-const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
-export function ExpiryTable({ items, loading, onWriteOff, onTransfer }: { items: ExpiryLot[]; loading: boolean; onWriteOff: (lot: ExpiryLot) => void; onTransfer: (lot: ExpiryLot) => void }) {
-  if (loading) return <div className="p-12 text-center text-sm text-slate-500">Carregando lotes...</div>;
-  if (!items.length) return <div className="p-12 text-center"><p className="font-semibold text-slate-700">Nenhum lote encontrado</p><p className="mt-1 text-sm text-slate-400">Altere a busca ou os filtros.</p></div>;
-  return <div className="overflow-x-auto"><table className="w-full min-w-[1100px] text-left text-sm"><thead className="border-b border-slate-100 bg-slate-50/80 text-[11px] uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Lote / SKU</th><th className="px-3 py-3">Produto</th><th className="px-3 py-3">Local</th><th className="px-3 py-3 text-center">Vencimento</th><th className="px-3 py-3 text-center">Prazo</th><th className="px-3 py-3 text-right">Quantidade</th><th className="px-3 py-3 text-right">Custo total</th><th className="px-3 py-3">Ação recomendada</th><th className="px-4 py-3 text-center">Operação</th></tr></thead><tbody className="divide-y divide-slate-100">{items.map((lot) => { const expired = lot.daysRemaining < 0; const tone = expired ? "bg-red-100 text-red-700 border-red-200" : lot.daysRemaining <= 7 ? "bg-amber-100 text-amber-800 border-amber-200" : lot.daysRemaining <= 15 ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"; return <tr key={lot.id} className="hover:bg-slate-50/60"><td className="px-4 py-3"><p className="font-mono font-bold text-slate-800">{lot.batchNumber}</p><p className="font-mono text-xs text-slate-400">{lot.sku}</p></td><td className="px-3 py-3"><p className="font-semibold text-slate-800">{lot.productName}</p><p className="text-xs text-slate-400">{lot.category} · {lot.barcode}</p></td><td className="px-3 py-3 text-slate-600">{lot.location}</td><td className="px-3 py-3 text-center font-mono text-slate-700">{dateFormat.format(new Date(`${lot.expiryDate.slice(0, 10)}T00:00:00Z`))}</td><td className="px-3 py-3 text-center"><span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${tone}`}>{expired ? `Vencido há ${Math.abs(lot.daysRemaining)}d` : `${lot.daysRemaining} ${lot.daysRemaining === 1 ? "dia" : "dias"}`}</span></td><td className="px-3 py-3 text-right font-mono font-semibold">{lot.quantity} {lot.unit}</td><td className="px-3 py-3 text-right font-mono text-slate-600">{currency.format(lot.totalCost)}</td><td className="px-3 py-3 text-slate-600">{lot.recommendedAction}</td><td className="px-4 py-3 text-center"><button type="button" onClick={() => expired ? onWriteOff(lot) : onTransfer(lot)} className={`whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${expired ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100" : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"}`}>{expired ? "Dar baixa" : "Transferir PEPS"}</button></td></tr>; })}</tbody></table></div>;
+const dateFormat = new Intl.DateTimeFormat("pt-BR", {
+  dateStyle: "short",
+  timeZone: "UTC",
+});
+const currency = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
+
+interface ExpiryTableProps {
+  items: ExpiryLot[];
+  loading: boolean;
+  onWriteOff: (lot: ExpiryLot) => void;
+  onTransfer: (lot: ExpiryLot) => void;
+}
+
+function getDeadlineTone(daysRemaining: number) {
+  if (daysRemaining < 0) return "bg-red-100 text-red-700 border-red-200";
+  if (daysRemaining <= 7) return "bg-amber-100 text-amber-800 border-amber-200";
+  if (daysRemaining <= 15) return "bg-blue-50 text-blue-700 border-blue-200";
+  return "bg-emerald-50 text-emerald-700 border-emerald-200";
+}
+
+function formatDeadline(daysRemaining: number) {
+  if (daysRemaining < 0) return `Vencido há ${Math.abs(daysRemaining)}d`;
+  return `${daysRemaining} ${daysRemaining === 1 ? "dia" : "dias"}`;
+}
+
+export function ExpiryTable({
+  items,
+  loading,
+  onWriteOff,
+  onTransfer,
+}: ExpiryTableProps) {
+  if (loading) {
+    return <div className="p-12 text-center text-sm text-slate-500">Carregando lotes...</div>;
+  }
+
+  if (!items.length) {
+    return (
+      <div className="p-12 text-center">
+        <p className="font-semibold text-slate-700">Nenhum lote encontrado</p>
+        <p className="mt-1 text-sm text-slate-400">Altere a busca ou os filtros.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[1100px] text-left text-sm">
+        <thead className="border-b border-slate-100 bg-slate-50/80 text-[11px] uppercase tracking-wide text-slate-500">
+          <tr>
+            <th className="px-4 py-3">Lote / SKU</th>
+            <th className="px-3 py-3">Produto</th>
+            <th className="px-3 py-3">Local</th>
+            <th className="px-3 py-3 text-center">Vencimento</th>
+            <th className="px-3 py-3 text-center">Prazo</th>
+            <th className="px-3 py-3 text-right">Quantidade</th>
+            <th className="px-3 py-3 text-right">Custo total</th>
+            <th className="px-3 py-3">Ação recomendada</th>
+            <th className="px-4 py-3 text-center">Operação</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {items.map((lot) => {
+            const expired = lot.daysRemaining < 0;
+            const operationLabel = expired ? "Dar baixa" : "Transferir PEPS";
+            const operationClass = expired
+              ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+              : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100";
+
+            return (
+              <tr key={lot.id} className="hover:bg-slate-50/60">
+                <td className="px-4 py-3">
+                  <p className="font-mono font-bold text-slate-800">{lot.batchNumber}</p>
+                  <p className="font-mono text-xs text-slate-400">{lot.sku}</p>
+                </td>
+                <td className="px-3 py-3">
+                  <p className="font-semibold text-slate-800">{lot.productName}</p>
+                  <p className="text-xs text-slate-400">
+                    {lot.category} · {lot.barcode}
+                  </p>
+                </td>
+                <td className="px-3 py-3 text-slate-600">{lot.location}</td>
+                <td className="px-3 py-3 text-center font-mono text-slate-700">
+                  {dateFormat.format(new Date(`${lot.expiryDate.slice(0, 10)}T00:00:00Z`))}
+                </td>
+                <td className="px-3 py-3 text-center">
+                  <span
+                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${getDeadlineTone(lot.daysRemaining)}`}
+                  >
+                    {formatDeadline(lot.daysRemaining)}
+                  </span>
+                </td>
+                <td className="px-3 py-3 text-right font-mono font-semibold">
+                  {lot.quantity} {lot.unit}
+                </td>
+                <td className="px-3 py-3 text-right font-mono text-slate-600">
+                  {currency.format(lot.totalCost)}
+                </td>
+                <td className="px-3 py-3 text-slate-600">{lot.recommendedAction}</td>
+                <td className="px-4 py-3 text-center">
+                  <button
+                    type="button"
+                    onClick={() => (expired ? onWriteOff(lot) : onTransfer(lot))}
+                    className={`whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${operationClass}`}
+                  >
+                    {operationLabel}
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 }

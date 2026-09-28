@@ -24,18 +24,25 @@ export default function Produtos() {
   const [bulkSale, setBulkSale] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
 
+  // Carrega o catálogo e os locais uma vez para preencher a tabela e os editores de estoque.
   useEffect(() => { void Promise.all([operationsService.listProducts(), operationsService.listLocations()]).then(([products, stores]) => { setItems(products); setLocations(stores); }); }, []);
+
+  // A busca do cabeçalho pode abrir esta página já com um termo preenchido na URL.
   useEffect(() => { setSearch(searchParams.get("search") ?? ""); }, [searchParams]);
+
+  // Aplica busca e categoria sem alterar a lista original recebida do serviço.
   const filtered = useMemo(() => items.filter((p) => (category === "ALL" || p.category === category) && `${p.name} ${p.sku} ${p.barcode}`.toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR"))), [items, search, category]);
   const categories = [...new Set(items.map((p) => p.category))];
 
   const saveProduct = async (data: QuickProductFormData) => {
     const product = quickFormToProduct(data, "pending");
+    // Estoque inicial é enviado por local, pois cada loja pode começar com uma quantidade diferente.
     const initialStockByLocation = Object.entries(data.initialStockByLocation).map(([locationId, quantity]) => ({ locationId, quantity: Number(quantity) || 0 }));
     const saved = await operationsService.createProduct(product, initialStockByLocation);
     setItems((current) => [saved, ...current]); setQuickFormOpen(false); setNotice(`Produto “${saved.name}” cadastrado com sucesso.`);
   };
 
+  // Salva os campos editáveis e substitui o produto na tabela pelo retorno atualizado.
   const saveEdit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); if (!editing) return;
     const data = new FormData(event.currentTarget);
@@ -48,13 +55,16 @@ export default function Produtos() {
   };
 
   const saveInventory = async (product: CatalogProduct, location: StoreLocation, quantity: number, expiryDate: string) => {
+    // Atualiza somente o saldo e a validade deste produto neste local.
     const updated = await operationsService.updateProductInventory(product.id, location.id, quantity, expiryDate);
     setItems((current) => current.map((item) => item.id === updated.id ? updated : item));
     setNotice(`Estoque e validade de ${product.name} atualizados em ${location.name}.`);
   };
 
+  // Atualiza preços em lote por marca ou para o catálogo inteiro.
   const applyBulkPrices = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    // Permite atualizar custo, venda ou ambos, sem sobrescrever o preço que ficou em branco.
     const targets = items.filter((item) => bulkBrand === "ALL" || item.brand === bulkBrand);
     const prices = { ...(bulkCost !== "" ? { costPrice: Number(bulkCost.replace(",", ".")) } : {}), ...(bulkSale !== "" ? { salePrice: Number(bulkSale.replace(",", ".")) } : {}) };
     if (!targets.length || !Object.keys(prices).length) return;
@@ -95,8 +105,10 @@ export default function Produtos() {
   </div>;
 }
 
+// Cartão pequeno usado no resumo do catálogo.
 function Metric({ icon, label, value }: { icon?: ReactNode; label: string; value: string }) { return <article className="rounded-xl border border-slate-200 bg-white p-4"><div className="flex justify-between text-xs font-semibold uppercase text-slate-500">{label}<span className="text-blue-600">{icon}</span></div><p className="mt-2 text-2xl font-bold text-slate-900">{value}</p></article>; }
 
+// Formulário expansível que edita o saldo e a data de validade de um único local.
 function ProductLocationEditor({ product, location, quantity: initialQuantity, expiryDate: initialExpiryDate, onSave }: { product: CatalogProduct; location: StoreLocation; quantity: number; expiryDate: string; onSave: (quantity: number, expiryDate: string) => Promise<void> }) {
   const [quantity, setQuantity] = useState(String(initialQuantity));
   const [expiryDate, setExpiryDate] = useState(initialExpiryDate);
