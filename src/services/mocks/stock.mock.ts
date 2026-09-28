@@ -33,6 +33,13 @@ const items: StockListItem[] = products.map((product, index) => {
   return { stock, product, batch, location, category: category.find((entry) => entry.id === product.categoryId)!, status: quantity === 0 ? "OUT_OF_STOCK" : quantity < min ? "LOW" : "NORMAL", daysUntilExpiry };
 });
 
+export function renameStockLocationMock(previousNames: string[], newName: string): void {
+  const nowUpdated = new Date().toISOString();
+  for (const location of locations) {
+    if (previousNames.includes(location.name)) { location.name = newName; location.updatedAt = nowUpdated; }
+  }
+}
+
 export function getStockMock(filters: StockFilters): StockListResponse {
   const filtered = items.filter((item) => {
     const term = filters.search.trim().toLocaleLowerCase("pt-BR");

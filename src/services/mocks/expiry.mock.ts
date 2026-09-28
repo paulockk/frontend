@@ -17,10 +17,29 @@ const seed: Omit<ExpiryLot, "severity">[] = [
   { id: "expiry-004", sku: "LAC-019", barcode: "7891000123450", productName: "Leite Fermentado 6x80g", category: "Laticínios", location: "Mercadinho 2", batchNumber: "LT-77402", expiryDate: dateIn(5), daysRemaining: 5, quantity: 18, unit: "un", totalCost: 86.4, recommendedAction: "Priorizar reposição PEPS" },
   { id: "expiry-005", sku: "DOC-112", barcode: "7894561237890", productName: "Bolo de Pote Cenoura com Chocolate", category: "Doces e Snacks", location: "Vending Machine 02", batchNumber: "LT-91022", expiryDate: dateIn(7), daysRemaining: 7, quantity: 8, unit: "un", totalCost: 72, recommendedAction: "Remanejar para ponto de maior giro" },
   { id: "expiry-006", sku: "BEB-089", barcode: "7899876543210", productName: "Suco Integral de Laranja 300ml", category: "Bebidas", location: "CD", batchNumber: "LT-66109", expiryDate: dateIn(12), daysRemaining: 12, quantity: 140, unit: "un", totalCost: 490, recommendedAction: "Expedir para unidades pela regra PEPS" },
-  { id: "expiry-007", sku: "BEB-001", barcode: "7891234567890", productName: "Refrigerante Cola Lata 350ml", category: "Bebidas", location: "CD", batchNumber: "LT-55341", expiryDate: dateIn(182), daysRemaining: 182, quantity: 360, unit: "un", totalCost: 1080, recommendedAction: "Estoque seguro em armazenagem" },
+  { id: "expiry-007", sku: "BEB-COC-350", barcode: "789123456789", productName: "Coca-Cola Original 350ml", category: "Bebidas", location: "CD", batchNumber: "LT-55341", expiryDate: dateIn(182), daysRemaining: 182, quantity: 360, unit: "un", totalCost: 1080, recommendedAction: "Estoque seguro em armazenagem" },
+  { id: "expiry-008", sku: "BEB-COC-350", barcode: "789123456789", productName: "Coca-Cola Original 350ml", category: "Bebidas", location: "Mercadinho 1", batchNumber: "LT-55342", expiryDate: dateIn(90), daysRemaining: 90, quantity: 5, unit: "un", totalCost: 15, recommendedAction: "Estoque seguro no ponto de venda" },
+  { id: "expiry-009", sku: "BEB-COC-350", barcode: "789123456789", productName: "Coca-Cola Original 350ml", category: "Bebidas", location: "Mercadinho 2", batchNumber: "LT-55343", expiryDate: dateIn(120), daysRemaining: 120, quantity: 8, unit: "un", totalCost: 24, recommendedAction: "Estoque seguro no ponto de venda" },
 ];
 const lots: ExpiryLot[] = seed.map((lot) => ({ ...lot, severity: severityFor(lot.daysRemaining) }));
 const severities: ExpirySeverity[] = ["EXPIRED", "CRITICAL", "WARNING", "REGULAR"];
+
+export function renameExpiryLocationMock(previousNames: string[], newName: string): void {
+  for (const lot of lots) if (previousNames.includes(lot.location)) lot.location = newName;
+}
+
+export function updateExpiryMockForProductLocation(sku: string, location: string, expiryDate: string): void {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const expiry = new Date(`${expiryDate}T00:00:00`);
+  const daysRemaining = Math.ceil((expiry.getTime() - today.getTime()) / 86400000);
+  for (const lot of lots) {
+    if (lot.sku === sku && lot.location === location) {
+      lot.expiryDate = expiryDate;
+      lot.daysRemaining = daysRemaining;
+      lot.severity = severityFor(daysRemaining);
+    }
+  }
+}
 
 export function getExpiryMock(filters: ExpiryFilters): ExpiryListResponse {
   const term = filters.search.trim().toLocaleLowerCase("pt-BR");

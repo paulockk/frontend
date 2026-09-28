@@ -11,7 +11,6 @@ import {
   DEFAULT_GATEWAY_STATUS,
   DEFAULT_HEADER_USER,
   DEFAULT_LOCATIONS,
-  DEFAULT_UNREAD_NOTIFICATIONS,
 } from "./header.data";
 
 import type { HeaderProps } from "./header.types";
@@ -20,17 +19,12 @@ import { useLocationFilter } from "../../../contexts/LocationFilterContext";
 export const Header: React.FC<HeaderProps> = ({
   onSearch,
 
-  unreadNotificationsCount =
-    DEFAULT_UNREAD_NOTIFICATIONS,
-
   gatewayStatus = DEFAULT_GATEWAY_STATUS,
 
   user = DEFAULT_HEADER_USER,
 
   locations = DEFAULT_LOCATIONS,
 
-  onNotificationsClick,
-  onHelpClick,
   onProfileClick,
 }) => {
   const locationFilter = useLocationFilter();
@@ -71,14 +65,9 @@ export const Header: React.FC<HeaderProps> = ({
 
         <div className="h-5 w-[1px] bg-slate-200 hidden sm:block" />
 
-        <HeaderNotifications
-          unreadCount={unreadNotificationsCount}
-          onClick={onNotificationsClick}
-        />
+        <HeaderNotifications />
 
-        <HeaderHelp
-          onClick={onHelpClick}
-        />
+        <HeaderHelp />
 
         <HeaderUser
           user={user}

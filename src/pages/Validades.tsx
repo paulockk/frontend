@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Printer, RefreshCw } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { ExpiryFilters } from "../components/expiry/ExpiryFilters";
 import { ExpirySummary } from "../components/expiry/ExpirySummary";
 import { ExpiryTable } from "../components/expiry/ExpiryTable";
@@ -7,11 +8,12 @@ import { expiryService } from "../services/expiry.service";
 import { useLocationFilter } from "../contexts/LocationFilterContext";
 import type { ExpiryFilters as Filters, ExpiryListResponse, ExpiryLot } from "../types/expiry";
 
-const initialFilters: Filters = { search: "", location: "ALL", category: "ALL", severity: "ALL", page: 1, pageSize: 10 };
+const initialFilters = (search: string): Filters => ({ search, location: "ALL", category: "ALL", severity: "ALL", page: 1, pageSize: 10 });
 
 export default function Validades() {
-  const { selectedLocationId, selectedLocation, matchesLocation } = useLocationFilter();
-  const [filters, setFilters] = useState(initialFilters);
+  const [searchParams] = useSearchParams();
+  const { selectedLocationId, selectedLocation } = useLocationFilter();
+  const [filters, setFilters] = useState(() => initialFilters(searchParams.get("search") ?? ""));
   const [data, setData] = useState<ExpiryListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -19,6 +21,7 @@ export default function Validades() {
   const [actionBusy, setActionBusy] = useState(false);
 
   const refresh = useCallback(() => setFilters((current) => ({ ...current })), []);
+  useEffect(() => { setFilters((current) => ({ ...current, search: searchParams.get("search") ?? "", page: 1 })); }, [searchParams]);
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -44,10 +47,9 @@ export default function Validades() {
       setFilters((current) => current.location === "ALL" ? current : { ...current, location: "ALL", page: 1 });
       return;
     }
-    if (!selectedLocation || !data?.locations.length) return;
-    const location = data.locations.find((name) => matchesLocation(name)) ?? "__NO_MATCH__";
-    setFilters((current) => current.location === location ? current : { ...current, location, page: 1 });
-  }, [selectedLocationId, selectedLocation, data?.locations, matchesLocation]);
+    if (!selectedLocation) return;
+    setFilters((current) => current.location === selectedLocation.name ? current : { ...current, location: selectedLocation.name, page: 1 });
+  }, [selectedLocationId, selectedLocation]);
   const onWriteOff = (lot: ExpiryLot) => void runAction(() => expiryService.writeOff(lot.id), "Solicitação de baixa registrada.");
   const onTransfer = (lot: ExpiryLot) => void runAction(() => expiryService.transferFifo(lot.id), "Solicitação de transferência PEPS registrada.");
 

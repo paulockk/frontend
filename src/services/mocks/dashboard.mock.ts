@@ -189,6 +189,19 @@ export const dashboardMock: DashboardResponse = {
   ],
 };
 
+export function renameDashboardLocationMock(previousNames: string[], newName: string): void {
+  const rename = (name: string) => previousNames.includes(name) ? newName : name;
+  dashboardMock.expiringLots.forEach((lot) => { lot.locationName = rename(lot.locationName); });
+  dashboardMock.locations.forEach((location) => { location.name = rename(location.name); });
+  dashboardMock.recentMovements.forEach((movement) => {
+    if (movement.origin) movement.origin = rename(movement.origin);
+    if (movement.destination) movement.destination = rename(movement.destination);
+  });
+  dashboardMock.salesInsights?.locationSales.forEach((item) => { item.locationName = rename(item.locationName); });
+  dashboardMock.salesInsights?.byLocation?.forEach((item) => { item.locationName = rename(item.locationName); });
+  dashboardMock.locationSummaries?.forEach((item) => { item.locationName = rename(item.locationName); });
+}
+
 
 
 
