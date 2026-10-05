@@ -326,6 +326,8 @@ export function quickFormToProduct(data: QuickProductFormData, id: string): Cata
     sku: data.sku || data.barcode,
     barcode: data.barcode,
     name: data.name,
+    unit: data.unit.toUpperCase(),
+    tracksExpiration: data.isPerishable,
     brand: data.brand,
     category: data.category,
     costPrice: price(data.costPrice),
