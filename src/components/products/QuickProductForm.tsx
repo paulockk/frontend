@@ -1,4 +1,10 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import {
   Barcode,
   CalendarDays,
@@ -6,7 +12,6 @@ import {
   DollarSign,
   PackagePlus,
   Save,
-  Sparkles,
   X,
 } from "lucide-react";
 import type { CatalogProduct, StoreLocation } from "../../types/operations";
@@ -69,15 +74,18 @@ export function QuickProductForm({
 }) {
   const [form, setForm] = useState(createInitialForm);
   const [locations, setLocations] = useState<StoreLocation[]>([]);
-  const [scanning, setScanning] = useState(false);
-  const [autoFilled, setAutoFilled] = useState(false);
+  const [awaitingScan, setAwaitingScan] = useState(false);
+  const [scanComplete, setScanComplete] = useState(false);
+  const barcodeInput = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     void operationsService
       .listLocations()
-      .then((items) => setLocations(items.filter((location) => location.status === "ACTIVE")))
+      .then((items) =>
+        setLocations(items.filter((location) => location.status === "ACTIVE")),
+      )
       .catch(() => setError("Não foi possível carregar os locais ativos."));
   }, []);
 
@@ -90,25 +98,10 @@ export function QuickProductForm({
   const margin = sale > 0 ? ((sale - cost) / sale) * 100 : 0;
   const profit = Math.max(0, sale - cost);
 
-  const simulateScan = () => {
-    setScanning(true);
-    window.setTimeout(() => {
-      setForm((current) => ({
-        ...current,
-        barcode: "789123456789",
-        sku: "BEB-COC-350",
-        name: "Coca-Cola Original 350ml",
-        brand: "The Coca-Cola Company",
-        category: "Bebidas",
-        costPrice: "2,80",
-        salePrice: "5,00",
-        minStockGlobal: "120",
-        expiryDate: defaultExpiryDate(),
-        isPerishable: false,
-      }));
-      setScanning(false);
-      setAutoFilled(true);
-    }, 500);
+  const activateBarcodeReader = () => {
+    setScanComplete(false);
+    setAwaitingScan(true);
+    barcodeInput.current?.focus();
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -118,7 +111,11 @@ export function QuickProductForm({
     try {
       await onSave(form);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Não foi possível salvar o produto.");
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Não foi possível salvar o produto.",
+      );
     } finally {
       setSaving(false);
     }
@@ -144,7 +141,8 @@ export function QuickProductForm({
               </span>
             </div>
             <p className="mt-1 text-sm text-slate-500">
-              Informe os dados do produto e distribua o estoque inicial entre os locais ativos.
+              Informe os dados do produto e distribua o estoque inicial entre os
+              locais ativos.
             </p>
           </div>
         </div>
@@ -167,20 +165,36 @@ export function QuickProductForm({
             </h3>
             <button
               type="button"
-              onClick={simulateScan}
-              disabled={scanning}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+              onClick={activateBarcodeReader}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50"
             >
-              <Sparkles className="h-3.5 w-3.5" />
-              {scanning ? "Lendo…" : "Simular leitura EAN"}
+              <Barcode className="h-3.5 w-3.5" />
+              Usar leitor de código
             </button>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Código de barras (EAN / GTIN) *">
               <input
+                ref={barcodeInput}
                 required
                 value={form.barcode}
-                onChange={(event) => update({ barcode: event.target.value })}
+                onChange={(event) => {
+                  update({ barcode: event.target.value });
+                  setScanComplete(false);
+                }}
+                onBlur={(event) => {
+                  if (awaitingScan && event.currentTarget.value.trim()) {
+                    setAwaitingScan(false);
+                    setScanComplete(true);
+                  }
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    setAwaitingScan(false);
+                    setScanComplete(Boolean(event.currentTarget.value.trim()));
+                  }
+                }}
                 className={`${inputClass} font-mono`}
                 placeholder="Ex.: 789123456789"
               />
@@ -194,33 +208,75 @@ export function QuickProductForm({
               />
             </Field>
           </div>
-          {autoFilled && (
-            <p className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-              <CheckCircle2 className="h-4 w-4" />
-              Dados preenchidos pela simulação de leitura EAN.
+          {(awaitingScan || scanComplete) && (
+            <p
+              aria-live="polite"
+              className={`mt-3 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${scanComplete ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-blue-200 bg-blue-50 text-blue-700"}`}
+            >
+              {scanComplete ? (
+                <CheckCircle2 className="h-4 w-4" />
+              ) : (
+                <Barcode className="h-4 w-4" />
+              )}
+              {scanComplete
+                ? "Código lido. Complete os dados restantes do produto."
+                : "Leitor ativo: escaneie o código de barras."}
             </p>
           )}
         </section>
 
         <section className="grid gap-3 sm:grid-cols-3">
           <Field label="Nome do produto *" className="sm:col-span-2">
-            <input required value={form.name} onChange={(event) => update({ name: event.target.value })} className={inputClass} placeholder="Nome completo" />
+            <input
+              required
+              value={form.name}
+              onChange={(event) => update({ name: event.target.value })}
+              className={inputClass}
+              placeholder="Nome completo"
+            />
           </Field>
           <Field label="Marca / fabricante">
-            <input value={form.brand} onChange={(event) => update({ brand: event.target.value })} className={inputClass} placeholder="Marca" />
+            <input
+              value={form.brand}
+              onChange={(event) => update({ brand: event.target.value })}
+              className={inputClass}
+              placeholder="Marca"
+            />
           </Field>
           <Field label="Categoria">
-            <select value={form.category} onChange={(event) => update({ category: event.target.value })} className={inputClass}>
-              <option>Bebidas</option><option>Perecíveis</option><option>Snacks e Doces</option><option>Laticínios</option><option>Outros</option>
+            <select
+              value={form.category}
+              onChange={(event) => update({ category: event.target.value })}
+              className={inputClass}
+            >
+              <option>Bebidas</option>
+              <option>Perecíveis</option>
+              <option>Snacks e Doces</option>
+              <option>Laticínios</option>
+              <option>Outros</option>
             </select>
           </Field>
           <Field label="Unidade de medida">
-            <select value={form.unit} onChange={(event) => update({ unit: event.target.value })} className={inputClass}>
-              <option value="un">Unidade (un)</option><option value="pct">Pacote (pct)</option><option value="cx">Caixa (cx)</option><option value="kg">Quilograma (kg)</option>
+            <select
+              value={form.unit}
+              onChange={(event) => update({ unit: event.target.value })}
+              className={inputClass}
+            >
+              <option value="un">Unidade (un)</option>
+              <option value="pct">Pacote (pct)</option>
+              <option value="cx">Caixa (cx)</option>
+              <option value="kg">Quilograma (kg)</option>
             </select>
           </Field>
           <label className="flex items-center gap-2 self-end pb-2 text-sm text-slate-700">
-            <input type="checkbox" checked={form.isPerishable} onChange={(event) => update({ isPerishable: event.target.checked })} className="h-4 w-4 accent-blue-600" />
+            <input
+              type="checkbox"
+              checked={form.isPerishable}
+              onChange={(event) =>
+                update({ isPerishable: event.target.checked })
+              }
+              className="h-4 w-4 accent-blue-600"
+            />
             Produto perecível
           </label>
         </section>
@@ -232,23 +288,47 @@ export function QuickProductForm({
           </h3>
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label="Preço de custo (R$)">
-              <input inputMode="decimal" value={form.costPrice} onChange={(event) => update({ costPrice: event.target.value })} className={`${inputClass} font-mono`} placeholder="0,00" />
+              <input
+                inputMode="decimal"
+                value={form.costPrice}
+                onChange={(event) => update({ costPrice: event.target.value })}
+                className={`${inputClass} font-mono`}
+                placeholder="0,00"
+              />
             </Field>
             <Field label="Preço de venda (R$) *">
-              <input required inputMode="decimal" value={form.salePrice} onChange={(event) => update({ salePrice: event.target.value })} className={`${inputClass} font-mono`} placeholder="0,00" />
+              <input
+                required
+                inputMode="decimal"
+                value={form.salePrice}
+                onChange={(event) => update({ salePrice: event.target.value })}
+                className={`${inputClass} font-mono`}
+                placeholder="0,00"
+              />
             </Field>
             <div>
-              <span className="mb-1 block text-xs font-semibold text-slate-500">Margem estimada</span>
-              <div className="flex h-[38px] items-center justify-between rounded-lg border border-slate-200 bg-white px-3 text-sm">
+              <span className="mb-1 block text-xs font-semibold text-slate-500">
+                Margem estimada
+              </span>
+              <div className="flex h-9.5 items-center justify-between rounded-lg border border-slate-200 bg-white px-3 text-sm">
                 <b className="text-emerald-700">{margin.toFixed(1)}%</b>
-                <span className="text-xs text-slate-400">R$ {profit.toFixed(2).replace(".", ",")}/un</span>
+                <span className="text-xs text-slate-400">
+                  R$ {profit.toFixed(2).replace(".", ",")}/un
+                </span>
               </div>
             </div>
           </div>
         </section>
 
         <section className="grid gap-3 sm:grid-cols-2">
-          <Field label={<span className="flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />Data de validade</span>}>
+          <Field
+            label={
+              <span className="flex items-center gap-1">
+                <CalendarDays className="h-3.5 w-3.5" />
+                Data de validade
+              </span>
+            }
+          >
             <input
               required
               lang="pt-BR"
@@ -256,23 +336,44 @@ export function QuickProductForm({
               value={form.expiryDate}
               onChange={(event) => {
                 const selected = new Date(`${event.target.value}T00:00:00`);
-                const today = new Date(); today.setHours(0, 0, 0, 0);
-                const days = Math.ceil((selected.getTime() - today.getTime()) / 86400000);
-                update({ expiryDate: event.target.value, isPerishable: days <= 30 });
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const days = Math.ceil(
+                  (selected.getTime() - today.getTime()) / 86400000,
+                );
+                update({
+                  expiryDate: event.target.value,
+                  isPerishable: days <= 30,
+                });
               }}
               className={`${inputClass} font-mono`}
             />
-            <span className="mt-1 block text-[11px] font-normal text-slate-400">Selecione no calendário ou digite no formato dd/mm/aaaa.</span>
+            <span className="mt-1 block text-[11px] font-normal text-slate-400">
+              Selecione no calendário ou digite no formato dd/mm/aaaa.
+            </span>
           </Field>
           <Field label="Estoque mínimo global">
-            <input min="0" type="number" value={form.minStockGlobal} onChange={(event) => update({ minStockGlobal: event.target.value })} className={`${inputClass} font-mono`} />
+            <input
+              min="0"
+              type="number"
+              value={form.minStockGlobal}
+              onChange={(event) =>
+                update({ minStockGlobal: event.target.value })
+              }
+              className={`${inputClass} font-mono`}
+            />
           </Field>
         </section>
 
         <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">Estoque inicial por local</h3>
-            <p className="mt-1 text-xs text-slate-500">Informe a quantidade em cada loja ou máquina ativa. Deixe zero onde não houver unidades.</p>
+            <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">
+              Estoque inicial por local
+            </h3>
+            <p className="mt-1 text-xs text-slate-500">
+              Informe a quantidade em cada loja ou máquina ativa. Deixe zero
+              onde não houver unidades.
+            </p>
           </div>
           {locations.length ? (
             <div className="grid gap-3 sm:grid-cols-2">
@@ -282,22 +383,49 @@ export function QuickProductForm({
                     min="0"
                     type="number"
                     value={form.initialStockByLocation[location.id] ?? "0"}
-                    onChange={(event) => update({
-                      initialStockByLocation: { ...form.initialStockByLocation, [location.id]: event.target.value },
-                    })}
+                    onChange={(event) =>
+                      update({
+                        initialStockByLocation: {
+                          ...form.initialStockByLocation,
+                          [location.id]: event.target.value,
+                        },
+                      })
+                    }
                     className={`${inputClass} font-mono`}
                   />
                 </Field>
               ))}
             </div>
-          ) : <p className="text-sm text-amber-700">Nenhum local ativo encontrado.</p>}
+          ) : (
+            <p className="text-sm text-amber-700">
+              Nenhum local ativo encontrado.
+            </p>
+          )}
         </section>
 
-        {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+        {error && (
+          <p
+            role="alert"
+            className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+          >
+            {error}
+          </p>
+        )}
         <footer className="flex justify-end gap-2 border-t border-slate-100 pt-4">
-          <button type="button" onClick={onClose} className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200">Cancelar</button>
-          <button type="submit" disabled={saving || locations.length === 0} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
-            <Save className="h-4 w-4" />{saving ? "Salvando…" : "Salvar produto"}
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={saving || locations.length === 0}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            <Save className="h-4 w-4" />
+            {saving ? "Salvando…" : "Salvar produto"}
           </button>
         </footer>
       </form>
@@ -305,22 +433,40 @@ export function QuickProductForm({
   );
 }
 
-function Field({ label, children, className = "" }: { label: ReactNode; children: ReactNode; className?: string }) {
+function Field({
+  label,
+  children,
+  className = "",
+}: {
+  label: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <label className={`block text-xs font-semibold text-slate-500 ${className}`}>
+    <label
+      className={`block text-xs font-semibold text-slate-500 ${className}`}
+    >
       <span className="mb-1 block">{label}</span>
       {children}
     </label>
   );
 }
 
-export function quickFormToProduct(data: QuickProductFormData, id: string): CatalogProduct {
+// eslint-disable-next-line react-refresh/only-export-components
+export function quickFormToProduct(
+  data: QuickProductFormData,
+  id: string,
+): CatalogProduct {
   const price = (value: string) => Number(value.replace(",", ".")) || 0;
   const expiryDate = new Date(`${data.expiryDate}T00:00:00`);
-  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
   // A API ainda recebe o prazo em dias; a data escolhida também fica salva no produto.
-  const shelfLifeDays = Math.max(0, Math.ceil((expiryDate.getTime() - today.getTime()) / 86400000));
+  const shelfLifeDays = Math.max(
+    0,
+    Math.ceil((expiryDate.getTime() - today.getTime()) / 86400000),
+  );
   return {
     id,
     sku: data.sku || data.barcode,
