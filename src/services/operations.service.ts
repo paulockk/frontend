@@ -98,6 +98,14 @@ const reports: ReportCard[] = [
 ];
 
 export const operationsService = {
+  async findProductByBarcode(barcode: string): Promise<CatalogProduct | null> {
+    const normalizedBarcode = barcode.trim();
+    if (!normalizedBarcode) return null;
+    const query = new URLSearchParams({ page: "1", pageSize: "100", search: normalizedBarcode });
+    const result = await apiFetch<{ items: ApiProduct[] }>(`/products?${query}`);
+    const match = result.items.find((item) => item.barcode?.trim() === normalizedBarcode);
+    return match ? fromApiProduct(match) : null;
+  },
   async listProducts(): Promise<CatalogProduct[]> {
     if (!USE_API_FOR_PRODUCTS) return products;
     const [result, firstLots] = await Promise.all([
