@@ -2,7 +2,7 @@ import { apiFetch } from "./api";
 import { renameExpiryLocationMock, updateExpiryMockForProductLocation } from "./mocks/expiry.mock";
 import { renameStockLocationMock } from "./mocks/stock.mock";
 import { renameDashboardLocationMock } from "./mocks/dashboard.mock";
-import type { CatalogProduct, MovementRecord, ReportCard, SaleTransaction, StoreLocation } from "../types/operations";
+import type { CatalogProduct, MovementRecord, ReportCard, SaleTransaction, SalesReport, StoreLocation } from "../types/operations";
 
 // Replace mock responses with API endpoints as the backend modules become available.
 const USE_MOCK = true;
@@ -22,6 +22,7 @@ type ApiMovement = {
   location: string | null; sourceLocation: string | null; destinationLocation: string | null;
 };
 type ApiProductLot = { productId: string; locationId: string; quantity: string; expiryDate: string | null };
+type ApiSale = { id: string; receipt: string; date: string; location: string; items: string; payment: string; total: string; status: SaleTransaction["status"] };
 const fromApiLocation = (location: ApiLocation): StoreLocation => ({
   ...location,
   address: location.address ?? "",
@@ -399,7 +400,21 @@ export const operationsService = {
     return result.items.map(fromApiLocation);
   },
   async listSales(): Promise<SaleTransaction[]> {
-    throw new Error("A API atual ainda não oferece um endpoint de vendas.");
+    const firstPage = await apiFetch<{ items: ApiSale[]; pagination: { totalPages: number } }>("/sales?page=1&pageSize=100");
+    const otherPages = await Promise.all(Array.from(
+      { length: Math.max(0, firstPage.pagination.totalPages - 1) },
+      (_, index) => apiFetch<{ items: ApiSale[] }>(`/sales?page=${index + 2}&pageSize=100`),
+    ));
+    return [firstPage, ...otherPages].flatMap((page) => page.items).map((sale) => ({
+      ...sale,
+      total: Number(sale.total),
+    }));
+  },
+  async getSalesReport(filters: { locationId?: string; dateFrom?: string; dateTo?: string } = {}): Promise<SalesReport> {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) if (value) query.set(key, value);
+    const search = query.size ? `?${query.toString()}` : "";
+    return apiFetch<SalesReport>(`/reports/sales${search}`);
   },
   async listReports(): Promise<ReportCard[]> { return USE_MOCK ? reports : apiFetch<ReportCard[]>("/reports/logistics"); },
 };

@@ -15,7 +15,7 @@ import {
 import { operationsService } from "../services/operations.service";
 import { expiryService } from "../services/expiry.service";
 import { useLocationFilter } from "../contexts/LocationFilterContext";
-import type { CatalogProduct, MovementRecord, SaleTransaction, StoreLocation } from "../types/operations";
+import type { CatalogProduct, MovementRecord, SaleTransaction, SalesReport, StoreLocation } from "../types/operations";
 import type { ExpiryLot } from "../types/expiry";
 
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -45,6 +45,7 @@ export default function Relatorios() {
   const [error, setError] = useState("");
   const [period, setPeriod] = useState("30");
   const [locationId, setLocationId] = useState("all");
+  const [salesReport, setSalesReport] = useState<SalesReport | null>(null);
   const navigate = useNavigate();
   const { selectedLocationId } = useLocationFilter();
 
@@ -74,6 +75,28 @@ export default function Relatorios() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!data) return;
+    let active = true;
+    const filters: { locationId?: string; dateFrom?: string; dateTo?: string } = {};
+    if (locationId !== "all") filters.locationId = locationId;
+    if (period !== "all") {
+      const from = new Date();
+      from.setHours(0, 0, 0, 0);
+      from.setDate(from.getDate() - Number(period));
+      const toDateOnly = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      filters.dateFrom = toDateOnly(from);
+      filters.dateTo = toDateOnly(new Date());
+    }
+    setSalesReport(null);
+    void operationsService.getSalesReport(filters)
+      .then((report) => { if (active) setSalesReport(report); })
+      .catch((cause: unknown) => {
+        if (active) setError(cause instanceof Error ? cause.message : "Não foi possível carregar o relatório de vendas.");
+      });
+    return () => { active = false; };
+  }, [data, locationId, period]);
 
   const selectedLocation = data?.locations.find((location) => location.id === locationId);
   const inLocation = (name: string | null | undefined) => locationId === "all" || (!!selectedLocation && name === selectedLocation.name);
@@ -107,7 +130,8 @@ export default function Relatorios() {
   const expiring = filteredExpiry.filter((lot) => lot.daysRemaining <= 15);
   const criticalExpiry = filteredExpiry.filter((lot) => lot.daysRemaining <= 7);
   const completedSales = filteredSales.filter((sale) => sale.status === "COMPLETED");
-  const salesValue = completedSales.reduce((sum, sale) => sum + sale.total, 0);
+  const salesValue = salesReport ? Number(salesReport.summary.revenue) : completedSales.reduce((sum, sale) => sum + sale.total, 0);
+  const completedSalesCount = salesReport?.summary.completedSales ?? completedSales.length;
   const locationLabel = selectedLocation?.name ?? "Todos os locais";
 
   const reportCards = [
@@ -115,7 +139,7 @@ export default function Relatorios() {
     { id: "replenishment", badge: "REPOSIÇÃO", title: locationId === "all" ? "Produtos abaixo do mínimo" : "Produtos sem estoque no local", description: locationId === "all" ? "Compara a quantidade total disponível com o mínimo cadastrado para cada produto." : `Produtos sem unidades em ${locationLabel}. O estoque mínimo é global e não é comparado por unidade.`, metricLabel: locationId === "all" ? "Produtos em atenção" : "Produtos sem estoque", metric: qtyFormat.format(lowStock.length), secondaryLabel: locationId === "all" ? "Unidades para atingir o mínimo" : "Local selecionado", secondaryMetric: locationId === "all" ? qtyFormat.format(unitsBelowMinimum) : locationLabel, path: "/estoque", icon: <AlertTriangle className="h-4 w-4"/> },
     { id: "expiry", badge: "VALIDADES", title: "Lotes próximos do vencimento", description: "Lotes vencidos ou com vencimento nos próximos 15 dias.", metricLabel: "Lotes prioritários", metric: qtyFormat.format(expiring.length), secondaryLabel: "Custo desses lotes", secondaryMetric: brl.format(expiring.reduce((sum, lot) => sum + lot.totalCost, 0)), path: "/validades", icon: <ShieldCheck className="h-4 w-4"/> },
     { id: "audit", badge: "MOVIMENTAÇÕES", title: "Movimentações no período", description: "Entradas, saídas, transferências e ajustes registrados no intervalo selecionado.", metricLabel: "Movimentações", metric: qtyFormat.format(filteredMovements.length), secondaryLabel: "Transferências", secondaryMetric: qtyFormat.format(filteredMovements.filter((item) => item.type === "TRANSFER").length), path: "/movimentacoes", icon: <ArrowLeftRight className="h-4 w-4"/> },
-    { id: "sales", badge: "VENDAS", title: "Vendas concluídas", description: "Receita calculada apenas com transações concluídas no período selecionado.", metricLabel: "Transações", metric: qtyFormat.format(completedSales.length), secondaryLabel: "Receita registrada", secondaryMetric: brl.format(salesValue), path: "/vendas", icon: <ShoppingCart className="h-4 w-4"/> },
+    { id: "sales", badge: "VENDAS", title: "Vendas concluídas", description: "Receita calculada apenas com transações concluídas no período selecionado.", metricLabel: "Transações", metric: qtyFormat.format(completedSalesCount), secondaryLabel: "Receita registrada", secondaryMetric: brl.format(salesValue), path: "/vendas", icon: <ShoppingCart className="h-4 w-4"/> },
   ];
 
   const exportSummary = () => {
@@ -144,7 +168,7 @@ export default function Relatorios() {
     {loading && <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-8 text-sm text-slate-500"><RefreshCw className="h-4 w-4 animate-spin"/>Carregando dados dos relatórios...</div>}
 
     {!loading && data && <>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Kpi icon={<TrendingUp/>} label="Valor em estoque" value={brl.format(stockValue)} sub={locationLabel}/><Kpi icon={<AlertTriangle/>} label={locationId === "all" ? "Produtos abaixo do mínimo" : "Produtos sem estoque no local"} value={String(lowStock.length)} sub={locationId === "all" ? "Comparado ao mínimo global" : locationLabel}/><Kpi icon={<ShieldCheck/>} label="Validades prioritárias" value={String(criticalExpiry.length)} sub="Vencidos ou até 7 dias"/><Kpi icon={<ShoppingCart/>} label="Receita no período" value={brl.format(salesValue)} sub={`${completedSales.length} vendas concluídas`}/></div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Kpi icon={<TrendingUp/>} label="Valor em estoque" value={brl.format(stockValue)} sub={locationLabel}/><Kpi icon={<AlertTriangle/>} label={locationId === "all" ? "Produtos abaixo do mínimo" : "Produtos sem estoque no local"} value={String(lowStock.length)} sub={locationId === "all" ? "Comparado ao mínimo global" : locationLabel}/><Kpi icon={<ShieldCheck/>} label="Validades prioritárias" value={String(criticalExpiry.length)} sub="Vencidos ou até 7 dias"/><Kpi icon={<ShoppingCart/>} label="Receita no período" value={brl.format(salesValue)} sub={`${completedSalesCount} vendas concluídas`}/></div>
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{reportCards.map((report) => <article key={report.id} className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-xs"><span className="flex w-fit items-center gap-1.5 rounded border border-blue-100 bg-blue-50 px-2 py-1 text-[10px] font-bold tracking-wide text-blue-700">{report.icon}{report.badge}</span><h2 className="mt-3 font-bold text-slate-900">{report.title}</h2><p className="mt-1 min-h-10 text-sm leading-relaxed text-slate-500">{report.description}</p><div className="my-4 grid grid-cols-2 gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3"><div><p className="text-[10px] font-semibold uppercase text-slate-400">{report.metricLabel}</p><p className="mt-1 text-sm font-bold text-slate-800">{report.metric}</p></div><div><p className="text-[10px] font-semibold uppercase text-slate-400">{report.secondaryLabel}</p><p className="mt-1 text-sm font-bold text-blue-700">{report.secondaryMetric}</p></div></div><button type="button" onClick={() => navigate(report.path)} className="mt-auto inline-flex items-center justify-center gap-1.5 border-t border-slate-100 pt-3 text-xs font-semibold text-blue-700 hover:text-blue-900">Abrir seção<ArrowRight className="h-3.5 w-3.5"/></button></article>)}</section>
 
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white"><header className="border-b border-slate-100 px-5 py-4"><h2 className="font-bold text-slate-900">Estoque por produto e local</h2><p className="mt-1 text-xs text-slate-500">Quantidade atual, custo de aquisição e próxima validade cadastrada.</p></header><div className="overflow-x-auto"><table className="w-full min-w-[800px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr>{["Produto / SKU", "Local", "Quantidade", "Custo do estoque", "Validade"].map((title) => <th key={title} className="px-4 py-3">{title}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{scopedDetails.map((row) => <tr key={`${row.product.id}-${row.location.id}`}><td className="px-4 py-3 font-medium text-slate-800">{row.product.name}<p className="text-xs text-slate-400">{row.product.sku}</p></td><td className="px-4 py-3 text-slate-600">{row.location.name}</td><td className="px-4 py-3 font-mono">{qtyFormat.format(row.quantity)}</td><td className="px-4 py-3">{brl.format(row.value)}</td><td className="px-4 py-3">{row.expiryDate ? dateFormat.format(new Date(`${row.expiryDate}T00:00:00Z`)) : "—"}</td></tr>)}</tbody></table></div></section>
