@@ -49,7 +49,7 @@ export default function Produtos() {
     const updated = await operationsService.updateProduct({
       ...editing, name: String(data.get("name")), brand: String(data.get("brand")), category: String(data.get("category")),
       costPrice: Number(String(data.get("costPrice")).replace(",", ".")), salePrice: Number(String(data.get("salePrice")).replace(",", ".")),
-      minimumStock: Number(data.get("minimumStock")), shelfLifeDays: Number(data.get("shelfLifeDays")), status: data.get("status") as CatalogProduct["status"],
+      minimumStock: Number(data.get("minimumStock")), shelfLifeDays: Number(data.get("shelfLifeDays")), tracksExpiration: Number(data.get("shelfLifeDays")) > 0, status: data.get("status") as CatalogProduct["status"],
     });
     setItems((current) => current.map((item) => item.id === updated.id ? updated : item)); setEditing(null); setNotice(`Produto “${updated.name}” atualizado.`);
   };
