@@ -76,6 +76,8 @@ export function QuickProductForm({
   const [locations, setLocations] = useState<StoreLocation[]>([]);
   const [awaitingScan, setAwaitingScan] = useState(false);
   const [scanComplete, setScanComplete] = useState(false);
+  const [barcodeChecking, setBarcodeChecking] = useState(false);
+  const [existingBarcodeProduct, setExistingBarcodeProduct] = useState<CatalogProduct | null>(null);
   const barcodeInput = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,8 +102,32 @@ export function QuickProductForm({
 
   const activateBarcodeReader = () => {
     setScanComplete(false);
+    setExistingBarcodeProduct(null);
     setAwaitingScan(true);
     barcodeInput.current?.focus();
+  };
+
+  const checkScannedBarcode = async (value: string) => {
+    const barcode = value.trim();
+    if (!barcode) return;
+    setAwaitingScan(false);
+    setBarcodeChecking(true);
+    setScanComplete(false);
+    setExistingBarcodeProduct(null);
+    setError(null);
+    try {
+      const existing = await operationsService.findProductByBarcode(barcode);
+      setExistingBarcodeProduct(existing);
+      setScanComplete(!existing);
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? `Não foi possível verificar o código na API: ${cause.message}`
+          : "Não foi possível verificar o código na API.",
+      );
+    } finally {
+      setBarcodeChecking(false);
+    }
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -181,18 +207,17 @@ export function QuickProductForm({
                 onChange={(event) => {
                   update({ barcode: event.target.value });
                   setScanComplete(false);
+                  setExistingBarcodeProduct(null);
                 }}
                 onBlur={(event) => {
                   if (awaitingScan && event.currentTarget.value.trim()) {
-                    setAwaitingScan(false);
-                    setScanComplete(true);
+                    void checkScannedBarcode(event.currentTarget.value);
                   }
                 }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     event.preventDefault();
-                    setAwaitingScan(false);
-                    setScanComplete(Boolean(event.currentTarget.value.trim()));
+                    void checkScannedBarcode(event.currentTarget.value);
                   }
                 }}
                 className={`${inputClass} font-mono`}
@@ -208,17 +233,23 @@ export function QuickProductForm({
               />
             </Field>
           </div>
-          {(awaitingScan || scanComplete) && (
+          {(awaitingScan || scanComplete || barcodeChecking || existingBarcodeProduct) && (
             <p
               aria-live="polite"
               className={`mt-3 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${scanComplete ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-blue-200 bg-blue-50 text-blue-700"}`}
             >
-              {scanComplete ? (
+              {existingBarcodeProduct ? (
+                <Barcode className="h-4 w-4" />
+              ) : scanComplete ? (
                 <CheckCircle2 className="h-4 w-4" />
               ) : (
                 <Barcode className="h-4 w-4" />
               )}
-              {scanComplete
+              {existingBarcodeProduct
+                ? `Este código já está cadastrado em ${existingBarcodeProduct.name}.`
+                : barcodeChecking
+                ? "Verificando código na API..."
+                : scanComplete
                 ? "Código lido. Complete os dados restantes do produto."
                 : "Leitor ativo: escaneie o código de barras."}
             </p>
@@ -421,7 +452,7 @@ export function QuickProductForm({
           </button>
           <button
             type="submit"
-            disabled={saving || locations.length === 0}
+            disabled={saving || barcodeChecking || Boolean(existingBarcodeProduct) || locations.length === 0}
             className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
           >
             <Save className="h-4 w-4" />
