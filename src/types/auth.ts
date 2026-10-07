@@ -4,6 +4,7 @@ export interface AuthUser {
   email: string;
   avatarUrl: string | null;
   role: "ADMIN" | "USER";
+  permissions: string[];
 }
 
 export interface AuthResponse {
