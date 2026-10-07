@@ -13,7 +13,9 @@ import Locais from "./pages/Locais";
 import Vendas from "./pages/Vendas";
 import Relatorios from "./pages/Relatorios";
 import Login from "./pages/Login";
+import Configuracoes from "./pages/Configuracoes";
 import { RequireAuth } from "./components/auth/RequireAuth";
+import { AccessGuard } from "./components/auth/AccessGuard";
 import { AuthProvider } from "./contexts/AuthContext";
 
 import "./index.css";
@@ -26,15 +28,16 @@ const router = createHashRouter([
       path: "/",
       Component: AppLayout,
       children: [
-        { index: true, Component: Dashboard },
-        { path: "dashboard", Component: Dashboard },
-        { path: "estoque", Component: Estoque },
-        { path: "validades", Component: Validades },
-        { path: "produtos", Component: Produtos },
-        { path: "movimentacoes", Component: Movimentacoes },
-        { path: "locais", Component: Locais },
-        { path: "vendas", Component: Vendas },
-        { path: "relatorios", Component: Relatorios },
+        { index: true, element: <AccessGuard permission="dashboard.view"><Dashboard /></AccessGuard> },
+        { path: "dashboard", element: <AccessGuard permission="dashboard.view"><Dashboard /></AccessGuard> },
+        { path: "estoque", element: <AccessGuard permission="stock.view"><Estoque /></AccessGuard> },
+        { path: "validades", element: <AccessGuard permission="stock.view"><Validades /></AccessGuard> },
+        { path: "produtos", element: <AccessGuard permission="products.view"><Produtos /></AccessGuard> },
+        { path: "movimentacoes", element: <AccessGuard permission="stock.view"><Movimentacoes /></AccessGuard> },
+        { path: "locais", element: <AccessGuard permission="locations.view"><Locais /></AccessGuard> },
+        { path: "vendas", element: <AccessGuard permission="sales.view"><Vendas /></AccessGuard> },
+        { path: "relatorios", element: <AccessGuard permission="reports.view"><Relatorios /></AccessGuard> },
+        { path: "configuracoes", element: <AccessGuard adminOnly><Configuracoes /></AccessGuard> },
       ],
     }],
   },

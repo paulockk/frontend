@@ -1,4 +1,4 @@
-import { Outlet } from "react-router";
+import { Outlet, useNavigate } from "react-router";
 
 import { Sidebar } from "./components/layout/Sidebar/Sidebar";
 import { Header } from "./components/layout/Header/Header";
@@ -7,11 +7,16 @@ import { useAuth } from "./contexts/AuthContext";
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const displayUser = user ? {
+    id: user.id,
     name: user.name,
+    email: user.email,
     role: user.role === "ADMIN" ? "Administrador" : "Usuário",
     avatarUrl: user.avatarUrl ?? undefined,
     isOnline: true,
+    isAdmin: user.role === "ADMIN",
+    permissions: user.permissions,
   } : undefined;
   return (
     <LocationFilterProvider>
@@ -26,7 +31,13 @@ export default function AppLayout() {
         {/* Header */}
         <Header
           user={displayUser}
-          onProfileClick={() => { void logout().catch(() => undefined); }}
+          isAdmin={user?.role === "ADMIN"}
+          onSwitchAccount={(email) => {
+            void logout().catch(() => undefined).finally(() => navigate("/login", { replace: true, state: { prefillEmail: email } }));
+          }}
+          onLogout={() => {
+            void logout().catch(() => undefined).finally(() => navigate("/login", { replace: true }));
+          }}
         />
 
         {/* Conteúdo das páginas */}
