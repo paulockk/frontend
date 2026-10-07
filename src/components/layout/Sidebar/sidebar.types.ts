@@ -32,6 +32,8 @@ export interface UserProfile {
   role: string;
   avatarUrl?: string;
   isOnline?: boolean;
+  permissions?: string[];
+  isAdmin?: boolean;
 }
 
 export interface SidebarProps {
