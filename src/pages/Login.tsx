@@ -6,6 +6,7 @@ export default function Login() {
   const { user, loading, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const prefillEmail = (location.state as { prefillEmail?: string } | null)?.prefillEmail ?? "";
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -32,7 +33,7 @@ export default function Login() {
       <form onSubmit={handleSubmit} className="w-full max-w-sm bg-white rounded-xl border border-slate-200 p-6 space-y-4">
         <h1 className="text-xl font-semibold text-slate-800">Entrar no Stockflow</h1>
         <label className="block text-sm text-slate-600">E-mail
-          <input name="email" type="email" autoComplete="username" required className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800" />
+          <input name="email" type="email" autoComplete="username" defaultValue={prefillEmail} required className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800" />
         </label>
         <label className="block text-sm text-slate-600">Senha
           <input name="password" type="password" autoComplete="current-password" required className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800" />

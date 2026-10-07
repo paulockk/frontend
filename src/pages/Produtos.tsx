@@ -4,12 +4,17 @@ import { useSearchParams } from "react-router-dom";
 import { operationsService } from "../services/operations.service";
 import type { CatalogProduct, StoreLocation } from "../types/operations";
 import { QuickProductForm, quickFormToProduct, type QuickProductFormData } from "../components/products/QuickProductForm";
+import { useAuth } from "../contexts/AuthContext";
 
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const shortDate = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeZone: "UTC" });
 const inputClass = "mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm";
 
 export default function Produtos() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "ADMIN";
+  const canManageProducts = isAdmin || Boolean(user?.permissions.includes("products.manage"));
+  const canManageStock = isAdmin || Boolean(user?.permissions.includes("stock.manage"));
   const [searchParams] = useSearchParams();
   const [items, setItems] = useState<CatalogProduct[]>([]);
   const [locations, setLocations] = useState<StoreLocation[]>([]);
@@ -76,12 +81,12 @@ export default function Produtos() {
   return <div className="min-w-0 space-y-6 p-6">
     <header className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Catálogo master · {items.length} produtos</p><h1 className="mt-1 text-2xl font-bold text-slate-900">Produtos</h1><p className="mt-1 text-sm text-slate-500">Gerencie o catálogo, códigos de barras, custos e regras PEPS.</p></div><div className="flex flex-wrap gap-2">
       <button type="button" onClick={() => { const csv = ["SKU;Código de barras;Produto;Categoria;Custo;Venda", ...filtered.map((p) => [p.sku,p.barcode,p.name,p.category,p.costPrice,p.salePrice].join(";"))].join("\n"); const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })); a.download = "produtos.csv"; a.click(); URL.revokeObjectURL(a.href); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700"><Download className="h-4 w-4"/>Exportar</button>
-      <button type="button" onClick={() => { setBulkOpen((open) => !open); setNotice(null); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700"><Tags className="h-4 w-4"/>Editar preços em lote</button>
-      <button type="button" onClick={() => { setQuickFormOpen(true); setNotice(null); }} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white"><Plus className="h-4 w-4"/>Novo produto</button>
+      {canManageProducts && <button type="button" onClick={() => { setBulkOpen((open) => !open); setNotice(null); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700"><Tags className="h-4 w-4"/>Editar preços em lote</button>}
+      {canManageProducts && <button type="button" onClick={() => { setQuickFormOpen(true); setNotice(null); }} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white"><Plus className="h-4 w-4"/>Novo produto</button>}
     </div></header>
 
     <div className="grid gap-4 sm:grid-cols-3"><Metric icon={<Package className="h-4 w-4"/>} label="Produtos cadastrados" value={String(items.length)} /><Metric label="Categorias" value={String(categories.length)} /><Metric label="Itens em revisão" value={String(items.filter((p) => p.status === "REVIEW").length)} /></div>
-    {quickFormOpen && <QuickProductForm onClose={() => setQuickFormOpen(false)} onSave={saveProduct} />}
+    {quickFormOpen && <QuickProductForm onClose={() => setQuickFormOpen(false)} onSave={saveProduct} canSetInitialStock={canManageStock} />}
     {notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
 
     {bulkOpen && <form onSubmit={(event) => void applyBulkPrices(event)} className="grid gap-3 rounded-xl border border-blue-200 bg-white p-4 sm:grid-cols-4">

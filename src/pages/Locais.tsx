@@ -3,11 +3,16 @@ import { MapPin, Plus, RefreshCw, Store, Warehouse, Pencil, Trash2, X, Save } fr
 import { operationsService } from "../services/operations.service";
 import { useLocationFilter } from "../contexts/LocationFilterContext";
 import type { StoreLocation } from "../types/operations";
+import { useAuth } from "../contexts/AuthContext";
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 const fieldClass = "mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm";
 
 export default function Locais() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "ADMIN";
+  const canManage = isAdmin || Boolean(user?.permissions.includes("locations.manage"));
+  const canDelete = isAdmin || Boolean(user?.permissions.includes("locations.delete"));
   const [items, setItems] = useState<StoreLocation[]>([]);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<StoreLocation | null>(null);
@@ -19,6 +24,7 @@ export default function Locais() {
 
   const create = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!canManage) return;
     const data = new FormData(event.currentTarget);
     try {
       const created = await operationsService.createLocation({ name: String(data.get("name")).trim(), address: String(data.get("address")).trim(), type: data.get("type") as StoreLocation["type"], status: "ACTIVE" });
@@ -28,6 +34,7 @@ export default function Locais() {
 
   const saveEdit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!canManage) return;
     if (!editing) return;
     const data = new FormData(event.currentTarget);
     try {
@@ -37,6 +44,7 @@ export default function Locais() {
   };
 
   const remove = async (location: StoreLocation) => {
+    if (!canDelete) return;
     if (location.type === "WAREHOUSE" && location.name === "CD") return;
     const inventoryWarning = location.skuCount > 0 || location.stockValue > 0
       ? `\n\nEste local registra ${location.skuCount} SKU(s) e ${money.format(location.stockValue)} em estoque. A exclusão pode ser impedida se houver estoque ou movimentações vinculadas.`
@@ -51,7 +59,7 @@ export default function Locais() {
   const visibleItems = items.filter((location) => matchesLocation(location.name));
 
   return <div className="min-w-0 space-y-6 p-6">
-    <header className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Rede de distribuição</p><h1 className="mt-1 text-2xl font-bold text-slate-900">Locais e pontos de venda</h1><p className="mt-1 text-sm text-slate-500">Visão consolidada do CD, mercadinhos e vending machines.</p></div><button type="button" onClick={() => setFormOpen((open) => !open)} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white"><Plus className="h-4 w-4"/>Cadastrar local</button></header>
+    <header className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Rede de distribuição</p><h1 className="mt-1 text-2xl font-bold text-slate-900">Locais e pontos de venda</h1><p className="mt-1 text-sm text-slate-500">Visão consolidada do CD, mercadinhos e vending machines.</p></div>{canManage && <button type="button" onClick={() => setFormOpen((open) => !open)} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white"><Plus className="h-4 w-4"/>Cadastrar local</button>}</header>
     {notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
     {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {formOpen && <form onSubmit={(event) => void create(event)} className="grid gap-3 rounded-xl border border-blue-200 bg-white p-4 sm:grid-cols-3"><label className="text-xs font-semibold text-slate-500">Nome<input name="name" required maxLength={100} className={fieldClass}/></label><label className="text-xs font-semibold text-slate-500">Endereço / descrição<input name="address" required maxLength={200} className={fieldClass}/></label><label className="text-xs font-semibold text-slate-500">Tipo<select name="type" className={fieldClass}><option value="MARKET">Mercadinho</option><option value="WAREHOUSE">Centro de distribuição</option><option value="VENDING_MACHINE">Vending machine</option></select></label><div className="flex justify-end gap-2 sm:col-span-3"><button type="button" onClick={() => setFormOpen(false)} className="rounded-lg bg-slate-100 px-3 py-2 text-sm">Cancelar</button><button className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white">Salvar local</button></div></form>}
