@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiFetch } from "../../../services/api";
 
 import { SidebarLogo } from "./sidebarLogo";
 import { SidebarNav } from "./SidebarNav";
@@ -11,6 +12,17 @@ import type {
   SidebarProps,
   NavItemKey,
 } from "./sidebar.types";
+
+const permissionForNavItem: Partial<Record<NavItemKey, string>> = {
+  dashboard: "dashboard.view",
+  estoque: "stock.view",
+  produtos: "products.view",
+  validades: "stock.view",
+  movimentacoes: "stock.view",
+  locais: "locations.view",
+  vendas: "sales.view",
+  relatorios: "reports.view",
+};
 
 export const Sidebar: React.FC<SidebarProps> = ({
   activeKey = "dashboard",
@@ -26,6 +38,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
 
   const navigate = useNavigate();
+  const [urgentExpiryCount, setUrgentExpiryCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const loadUrgentExpiryCount = async () => {
+      try {
+        const result = await apiFetch<{ expiration: { expiredCount: number; criticalCount: number } }>("/stock/alerts?limit=1");
+        if (active) setUrgentExpiryCount(result.expiration.expiredCount + result.expiration.criticalCount);
+      } catch {
+        if (active) setUrgentExpiryCount(null);
+      }
+    };
+
+    void loadUrgentExpiryCount();
+    const interval = window.setInterval(() => void loadUrgentExpiryCount(), 60_000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  const resolvedNavItems = useMemo(() => navItems.map((item) => item.id === "validades"
+    ? { ...item, badge: urgentExpiryCount ? { count: urgentExpiryCount, variant: "danger" as const } : undefined }
+    : item).filter((item) => user.isAdmin || (
+      item.id !== "configuracoes" &&
+      (!permissionForNavItem[item.id] || user.permissions?.includes(permissionForNavItem[item.id]!))
+    )), [navItems, urgentExpiryCount, user.isAdmin, user.permissions]);
 
   const [current, setCurrent] =
     useState<NavItemKey>(activeKey);
@@ -51,7 +90,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         <SidebarNav
-          items={navItems}
+          items={resolvedNavItems}
           activeKey={current}
           onNavigate={handleNavigate}
         />

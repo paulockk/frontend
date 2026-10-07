@@ -31,10 +31,6 @@ export const DEFAULT_NAV_ITEMS: NavItem[] = [
     id: "validades",
     label: "Validades",
     icon: Package,
-    badge: {
-      count: 8,
-      variant: "danger",
-    },
   },
   {
     id: "movimentacoes",
