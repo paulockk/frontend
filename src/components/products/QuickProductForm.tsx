@@ -68,9 +68,11 @@ function createInitialForm(): QuickProductFormData {
 export function QuickProductForm({
   onClose,
   onSave,
+  canSetInitialStock = true,
 }: {
   onClose: () => void;
   onSave: (data: QuickProductFormData) => Promise<void>;
+  canSetInitialStock?: boolean;
 }) {
   const [form, setForm] = useState(createInitialForm);
   const [locations, setLocations] = useState<StoreLocation[]>([]);
@@ -396,7 +398,7 @@ export function QuickProductForm({
           </Field>
         </section>
 
-        <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+        {canSetInitialStock && <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
           <div>
             <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">
               Estoque inicial por local
@@ -432,7 +434,7 @@ export function QuickProductForm({
               Nenhum local ativo encontrado.
             </p>
           )}
-        </section>
+        </section>}
 
         {error && (
           <p
