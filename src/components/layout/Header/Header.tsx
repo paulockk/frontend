@@ -25,7 +25,9 @@ export const Header: React.FC<HeaderProps> = ({
 
   locations = DEFAULT_LOCATIONS,
 
-  onProfileClick,
+  isAdmin,
+  onSwitchAccount,
+  onLogout,
 }) => {
   const locationFilter = useLocationFilter();
   const locationOptions = [
@@ -71,7 +73,9 @@ export const Header: React.FC<HeaderProps> = ({
 
         <HeaderUser
           user={user}
-          onClick={onProfileClick}
+          isAdmin={isAdmin}
+          onSwitchAccount={onSwitchAccount}
+          onLogout={onLogout}
         />
 
       </div>

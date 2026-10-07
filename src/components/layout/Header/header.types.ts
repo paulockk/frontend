@@ -8,6 +8,7 @@ export interface GatewayStatus {
 export interface HeaderUser {
   id?: string | number;
   name: string;
+  email?: string;
   role: string;
   avatarUrl?: string;
   isOnline?: boolean;
@@ -35,5 +36,7 @@ export interface HeaderProps {
 
   onNotificationsClick?: () => void;
   onHelpClick?: () => void;
-  onProfileClick?: () => void;
+  isAdmin?: boolean;
+  onSwitchAccount?: (email: string) => void;
+  onLogout?: () => void;
 }
