@@ -6,6 +6,7 @@ import HeaderGatewayStatus from "./HeaderGatewayStatus";
 import HeaderNotifications from "./HeaderNotifications";
 import HeaderHelp from "./HeaderHelp";
 import HeaderUser from "./HeaderUser";
+import { ThemeToggle } from "./ThemeToggle";
 
 import {
   DEFAULT_GATEWAY_STATUS,
@@ -70,6 +71,8 @@ export const Header: React.FC<HeaderProps> = ({
         <HeaderNotifications />
 
         <HeaderHelp />
+
+        <ThemeToggle />
 
         <HeaderUser
           user={user}

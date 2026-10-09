@@ -1,1 +1,125 @@
 @import "tailwindcss";
+
+@layer base {
+  html.dark {
+    color-scheme: dark;
+  }
+
+  html.dark body {
+    background-color: #0b1220;
+    color: #e2e8f0;
+  }
+
+  html.dark .bg-white {
+    background-color: #111827 !important;
+  }
+
+  html.dark .bg-gray-50 {
+    background-color: #0b1220 !important;
+  }
+
+  html.dark [class*="bg-slate-50"] {
+    background-color: #111827 !important;
+  }
+
+  html.dark [class*="bg-slate-100"] {
+    background-color: #1f2937 !important;
+  }
+
+  html.dark [class*="bg-slate-200"],
+  html.dark [class*="bg-slate-300"] {
+    background-color: #334155 !important;
+  }
+
+  html.dark [class*="bg-blue-50"] {
+    background-color: color-mix(in srgb, #172554 72%, transparent) !important;
+  }
+
+  html.dark [class*="bg-blue-100"] {
+    background-color: #1e3a8a !important;
+  }
+
+  html.dark [class*="bg-emerald-50"] {
+    background-color: #052e24 !important;
+  }
+
+  html.dark [class*="bg-emerald-100"] {
+    background-color: #064e3b !important;
+  }
+
+  html.dark [class*="bg-amber-50"] {
+    background-color: #422006 !important;
+  }
+
+  html.dark [class*="bg-amber-100"] {
+    background-color: #713f12 !important;
+  }
+
+  html.dark [class*="bg-red-50"] {
+    background-color: #450a0a !important;
+  }
+
+  html.dark [class*="bg-red-100"] {
+    background-color: #7f1d1d !important;
+  }
+
+  html.dark [class*="text-slate-900"],
+  html.dark [class*="text-slate-800"] {
+    color: #f1f5f9 !important;
+  }
+
+  html.dark [class*="text-slate-700"],
+  html.dark [class*="text-slate-600"] {
+    color: #cbd5e1 !important;
+  }
+
+  html.dark [class*="text-slate-500"] {
+    color: #94a3b8 !important;
+  }
+
+  html.dark [class*="text-slate-400"] {
+    color: #94a3b8 !important;
+  }
+
+  html.dark [class*="text-blue-700"] {
+    color: #93c5fd !important;
+  }
+
+  html.dark [class*="text-emerald-700"] {
+    color: #6ee7b7 !important;
+  }
+
+  html.dark [class*="text-amber-700"],
+  html.dark [class*="text-amber-800"] {
+    color: #fcd34d !important;
+  }
+
+  html.dark [class*="text-red-700"] {
+    color: #fca5a5 !important;
+  }
+
+  html.dark [class*="border-slate-100"],
+  html.dark [class*="border-slate-200"],
+  html.dark [class*="border-slate-300"] {
+    border-color: #334155 !important;
+  }
+
+  html.dark input,
+  html.dark select,
+  html.dark textarea {
+    color-scheme: dark;
+    background-color: #111827;
+    color: #e2e8f0;
+    border-color: #475569;
+  }
+
+  html.dark input::placeholder,
+  html.dark textarea::placeholder {
+    color: #94a3b8;
+  }
+
+  html.dark [class*="hover:bg-slate-50"]:hover,
+  html.dark [class*="hover:bg-slate-100"]:hover {
+    background-color: #1f2937 !important;
+  }
+}
