@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { apiFetch } from "../../../services/api";
 
 import { SidebarLogo } from "./sidebarLogo";
@@ -38,6 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
 
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [urgentExpiryCount, setUrgentExpiryCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -66,15 +67,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       (!permissionForNavItem[item.id] || user.permissions?.includes(permissionForNavItem[item.id]!))
     )), [navItems, urgentExpiryCount, user.isAdmin, user.permissions]);
 
-  const [current, setCurrent] =
-    useState<NavItemKey>(activeKey);
+  const routeKey = (pathname.replace(/^\//, "").split("/")[0] || "dashboard") as NavItemKey;
+  const current = resolvedNavItems.some((item) => item.id === routeKey)
+    ? routeKey
+    : activeKey;
 
   const handleNavigate = (key: NavItemKey) => {
-
-    setCurrent(key);
-
     navigate(`/${key}`);
-
     onNavigate?.(key);
   };
 
