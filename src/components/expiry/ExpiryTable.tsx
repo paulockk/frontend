@@ -12,8 +12,6 @@ const currency = new Intl.NumberFormat("pt-BR", {
 interface ExpiryTableProps {
   items: ExpiryLot[];
   loading: boolean;
-  onWriteOff: (lot: ExpiryLot) => void;
-  onTransfer: (lot: ExpiryLot) => void;
 }
 
 function getDeadlineTone(daysRemaining: number) {
@@ -31,8 +29,6 @@ function formatDeadline(daysRemaining: number) {
 export function ExpiryTable({
   items,
   loading,
-  onWriteOff,
-  onTransfer,
 }: ExpiryTableProps) {
   if (loading) {
     return <div className="p-12 text-center text-sm text-slate-500">Carregando lotes...</div>;
@@ -66,10 +62,10 @@ export function ExpiryTable({
         <tbody className="divide-y divide-slate-100">
           {items.map((lot) => {
             const expired = lot.daysRemaining < 0;
-            const operationLabel = expired ? "Dar baixa" : "Transferir PEPS";
+            const operationLabel = expired ? "Bloqueado para venda" : "Prioridade na venda";
             const operationClass = expired
-              ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-              : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100";
+              ? "border-red-200 bg-red-50 text-red-700"
+              : "border-blue-200 bg-blue-50 text-blue-700";
 
             return (
               <tr key={lot.id} className="hover:bg-slate-50/60">
@@ -102,13 +98,9 @@ export function ExpiryTable({
                 </td>
                 <td className="px-3 py-3 text-slate-600">{lot.recommendedAction}</td>
                 <td className="px-4 py-3 text-center">
-                  <button
-                    type="button"
-                    onClick={() => (expired ? onWriteOff(lot) : onTransfer(lot))}
-                    className={`whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${operationClass}`}
-                  >
+                  <span className={`whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${operationClass}`}>
                     {operationLabel}
-                  </button>
+                  </span>
                 </td>
               </tr>
             );

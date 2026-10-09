@@ -78,15 +78,4 @@ export const expiryService = {
       },
     };
   },
-  async writeOff(lotId: string): Promise<void> {
-    void lotId;
-    throw new Error("A API atual ainda não oferece baixa de lote por validade.");
-  },
-  async runFifo(): Promise<void> {
-    throw new Error("A API atual ainda não oferece execução da rotina PEPS.");
-  },
-  async transferFifo(lotId: string): Promise<void> {
-    void lotId;
-    throw new Error("A API atual ainda não oferece transferência PEPS por lote.");
-  },
 };
