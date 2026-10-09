@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Printer, RefreshCw } from "lucide-react";
+import { CheckCircle2, Printer } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { ExpiryFilters } from "../components/expiry/ExpiryFilters";
 import { ExpirySummary } from "../components/expiry/ExpirySummary";
@@ -9,7 +9,6 @@ import { expiryService } from "../services/expiry.service";
 import type {
   ExpiryFilters as Filters,
   ExpiryListResponse,
-  ExpiryLot,
 } from "../types/expiry";
 
 const initialFilters = (search: string): Filters => ({
@@ -30,9 +29,6 @@ export default function Validades() {
   const [data, setData] = useState<ExpiryListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [actionBusy, setActionBusy] = useState(false);
-
   const refresh = useCallback(() => {
     setFilters((current) => ({ ...current }));
   }, []);
@@ -75,25 +71,6 @@ export default function Validades() {
     };
   }, [filters]);
 
-  const runAction = async (action: () => Promise<void>, successMessage: string) => {
-    setActionBusy(true);
-    setActionMessage(null);
-
-    try {
-      await action();
-      setActionMessage(successMessage);
-      refresh();
-    } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Não foi possível concluir a operação.",
-      );
-    } finally {
-      setActionBusy(false);
-    }
-  };
-
   // O seletor global de local também define o local aplicado nesta tabela.
   useEffect(() => {
     if (selectedLocationId === "all") {
@@ -112,17 +89,6 @@ export default function Validades() {
         : { ...current, location: selectedLocation.name, page: 1 },
     );
   }, [selectedLocationId, selectedLocation]);
-
-  const onWriteOff = (lot: ExpiryLot) =>
-    void runAction(
-      () => expiryService.writeOff(lot.id),
-      "Solicitação de baixa registrada.",
-    );
-  const onTransfer = (lot: ExpiryLot) =>
-    void runAction(
-      () => expiryService.transferFifo(lot.id),
-      "Solicitação de transferência PEPS registrada.",
-    );
 
   const pagination = data?.pagination;
 
@@ -150,18 +116,14 @@ export default function Validades() {
             <Printer className="h-4 w-4" />
             Imprimir relatório de vencimentos
           </button>
-          <button
-            type="button"
-            disabled={actionBusy}
-            onClick={() =>
-              void runAction(() => expiryService.runFifo(), "Rotina PEPS executada.")
-            }
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Executar rotina PEPS
-          </button>
+          <span className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
+            <CheckCircle2 className="h-4 w-4" />
+            Validade priorizada nas vendas
+          </span>
         </div>
+        <p className="text-sm text-slate-500">
+          As vendas usam primeiro o lote válido com vencimento mais próximo. Lotes vencidos ficam fora da baixa automática.
+        </p>
       </header>
 
       {data && <ExpirySummary summary={data.summary} />}
@@ -185,15 +147,6 @@ export default function Validades() {
           </button>
         </div>
       )}
-      {actionMessage && (
-        <p
-          role="status"
-          className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"
-        >
-          {actionMessage}
-        </p>
-      )}
-
       <section
         className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-xs"
         aria-label="Lotes e validades"
@@ -201,8 +154,6 @@ export default function Validades() {
         <ExpiryTable
           items={data?.items ?? []}
           loading={loading}
-          onWriteOff={onWriteOff}
-          onTransfer={onTransfer}
         />
         <footer className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/50 px-4 py-3 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-3">
