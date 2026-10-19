@@ -6,7 +6,7 @@ import type { Batch, Category, Location, Product, Stock } from "../types/entitie
 const USE_MOCK = false;
 type ApiLot = {
   batchId: string; productId: string; sku: string; productName: string;
-  categoryId: string | null; category: string | null; locationId: string; location: string;
+  categoryId: string | null; category: string | null; minimumStock: number | null; locationId: string; location: string;
   batchNumber: string | null; expiryDate: string | null; daysRemaining: number | null;
   quantity: string; unit: string;
   severity: "EXPIRED" | "CRITICAL" | "WARNING" | "REGULAR";
@@ -28,7 +28,7 @@ function mapLot(lot: ApiLot, lowStock: LowStockItem[], locations: Location[], ca
   const quantity = Number(lot.quantity);
   const product: Product = {
     id: lot.productId, barcode: lot.sku, name: lot.productName, description: null, brand: null,
-    categoryId: lot.categoryId ?? "uncategorized", unit: lot.unit, minimumStock: null,
+    categoryId: lot.categoryId ?? "uncategorized", unit: lot.unit, minimumStock: lot.minimumStock,
     purchasePrice: 0, salePrice: 0, isActive: true, createdAt: "", updatedAt: "",
   };
   const batch: Batch = {

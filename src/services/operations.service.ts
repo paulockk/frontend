@@ -13,7 +13,8 @@ let cachedApiProducts: CatalogProduct[] = [];
 type ApiLocation = { id: string; name: string; type: StoreLocation["type"]; address: string | null; status: StoreLocation["status"] };
 type ApiProduct = {
   id: string; sku: string; name: string; description: string | null; barcode: string | null;
-  category: string | null; costPrice: string; salePrice: string; defaultShelfLifeDays: number | null;
+  category: string | null; brand: string | null; supplier: string | null; minimumStock: number | null;
+  costPrice: string; salePrice: string; defaultShelfLifeDays: number | null;
   isActive: boolean; unit: string; tracksExpiration: boolean;
 };
 type ApiMovement = {
@@ -41,10 +42,11 @@ const fromApiProduct = (product: ApiProduct): CatalogProduct => {
     unit: product.unit,
   tracksExpiration: product.tracksExpiration,
     category: product.category ?? "Sem categoria",
-    brand: product.description ?? "",
+    brand: product.brand ?? "",
+    supplier: product.supplier ?? "",
     costPrice: Number(product.costPrice),
     salePrice: Number(product.salePrice),
-    minimumStock: cached?.minimumStock ?? 0,
+    minimumStock: product.minimumStock ?? cached?.minimumStock ?? 0,
     shelfLifeDays: product.defaultShelfLifeDays ?? 0,
     locationsCount: cached?.locationsCount ?? 0,
     stockByLocation: cached?.stockByLocation,
@@ -151,7 +153,10 @@ export const operationsService = {
       body: JSON.stringify({
         sku: product.sku,
         name: product.name,
-        description: product.brand || null,
+        description: null,
+        brand: product.brand || null,
+        supplier: product.supplier || null,
+        minimumStock: product.minimumStock || null,
         barcode: product.barcode || null,
         categoryId,
         unit: product.unit ?? "UN",
@@ -187,7 +192,9 @@ export const operationsService = {
       method: "PATCH",
       body: JSON.stringify({
         name: product.name,
-        description: product.brand || null,
+        brand: product.brand || null,
+        supplier: product.supplier || null,
+        minimumStock: product.minimumStock || null,
         categoryId,
         costPrice: toMoneyString(product.costPrice),
         salePrice: toMoneyString(product.salePrice),
