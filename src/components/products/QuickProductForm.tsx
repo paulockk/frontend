@@ -22,6 +22,7 @@ export interface QuickProductFormData {
   sku: string;
   name: string;
   brand: string;
+  supplier: string;
   category: string;
   costPrice: string;
   salePrice: string;
@@ -54,6 +55,7 @@ function createInitialForm(): QuickProductFormData {
     sku: "",
     name: "",
     brand: "",
+    supplier: "",
     category: "Bebidas",
     costPrice: "",
     salePrice: "",
@@ -276,6 +278,14 @@ export function QuickProductForm({
               placeholder="Marca"
             />
           </Field>
+          <Field label="Fornecedor">
+            <input
+              value={form.supplier}
+              onChange={(event) => update({ supplier: event.target.value })}
+              className={inputClass}
+              placeholder="Nome do fornecedor"
+            />
+          </Field>
           <Field label="Categoria">
             <select
               value={form.category}
@@ -296,9 +306,11 @@ export function QuickProductForm({
               className={inputClass}
             >
               <option value="un">Unidade (un)</option>
-              <option value="pct">Pacote (pct)</option>
-              <option value="cx">Caixa (cx)</option>
               <option value="kg">Quilograma (kg)</option>
+              <option value="g">Grama (g)</option>
+              <option value="l">Litro (l)</option>
+              <option value="ml">Mililitro (ml)</option>
+              <option value="m">Metro (m)</option>
             </select>
           </Field>
           <label className="flex items-center gap-2 self-end pb-2 text-sm text-slate-700">
@@ -385,7 +397,7 @@ export function QuickProductForm({
               Selecione no calendário ou digite no formato dd/mm/aaaa.
             </span>
           </Field>
-          <Field label="Estoque mínimo global">
+          <Field label="Estoque mínimo do produto">
             <input
               min="0"
               type="number"
@@ -508,6 +520,7 @@ export function quickFormToProduct(
     unit: data.unit.toUpperCase(),
     tracksExpiration: data.isPerishable,
     brand: data.brand,
+    supplier: data.supplier,
     category: data.category,
     costPrice: price(data.costPrice),
     salePrice: price(data.salePrice),

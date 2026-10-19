@@ -36,7 +36,7 @@ export default function Produtos() {
   useEffect(() => { setSearch(searchParams.get("search") ?? ""); }, [searchParams]);
 
   // Aplica busca e categoria sem alterar a lista original recebida do serviço.
-  const filtered = useMemo(() => items.filter((p) => (category === "ALL" || p.category === category) && `${p.name} ${p.sku} ${p.barcode}`.toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR"))), [items, search, category]);
+  const filtered = useMemo(() => items.filter((p) => (category === "ALL" || p.category === category) && `${p.name} ${p.sku} ${p.barcode} ${p.brand} ${p.supplier ?? ""}`.toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR"))), [items, search, category]);
   const categories = [...new Set(items.map((p) => p.category))];
 
   const saveProduct = async (data: QuickProductFormData) => {
@@ -52,7 +52,7 @@ export default function Produtos() {
     event.preventDefault(); if (!editing) return;
     const data = new FormData(event.currentTarget);
     const updated = await operationsService.updateProduct({
-      ...editing, name: String(data.get("name")), brand: String(data.get("brand")), category: String(data.get("category")),
+      ...editing, name: String(data.get("name")), brand: String(data.get("brand")), supplier: String(data.get("supplier")), category: String(data.get("category")),
       costPrice: Number(String(data.get("costPrice")).replace(",", ".")), salePrice: Number(String(data.get("salePrice")).replace(",", ".")),
       minimumStock: Number(data.get("minimumStock")), shelfLifeDays: Number(data.get("shelfLifeDays")), tracksExpiration: Number(data.get("shelfLifeDays")) > 0, status: data.get("status") as CatalogProduct["status"],
     });
@@ -99,7 +99,7 @@ export default function Produtos() {
 
     {editing && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"><form onSubmit={(event) => void saveEdit(event)} className="w-full max-w-2xl space-y-4 rounded-xl bg-white p-5 shadow-xl">
       <header className="flex items-center justify-between"><div><h2 className="text-lg font-bold text-slate-900">Editar produto</h2><p className="text-sm text-slate-500">Alterações somente em {editing.name}.</p></div><button type="button" onClick={() => setEditing(null)} aria-label="Fechar" className="text-slate-400">✕</button></header>
-      <div className="grid gap-3 sm:grid-cols-2">{[["name","Nome",editing.name],["brand","Marca",editing.brand],["category","Categoria",editing.category],["costPrice","Preço de custo",String(editing.costPrice)],["salePrice","Preço de venda",String(editing.salePrice)],["minimumStock","Estoque mínimo",String(editing.minimumStock)],["shelfLifeDays","Shelf life (dias)",String(editing.shelfLifeDays)]].map(([name,label,value]) => <label key={name} className="text-xs font-semibold text-slate-500">{label}<input name={name} defaultValue={value} required className={inputClass}/></label>)}
+      <div className="grid gap-3 sm:grid-cols-2">{[["name","Nome",editing.name],["brand","Marca",editing.brand],["supplier","Fornecedor",editing.supplier ?? ""],["category","Categoria",editing.category],["costPrice","Preço de custo",String(editing.costPrice)],["salePrice","Preço de venda",String(editing.salePrice)],["minimumStock","Estoque mínimo",String(editing.minimumStock)],["shelfLifeDays","Shelf life (dias)",String(editing.shelfLifeDays)]].map(([name,label,value]) => <label key={name} className="text-xs font-semibold text-slate-500">{label}<input name={name} defaultValue={value} required={name !== "supplier"} className={inputClass}/></label>)}
         <label className="text-xs font-semibold text-slate-500">Status<select name="status" defaultValue={editing.status} className={inputClass}><option value="ACTIVE">Ativo</option><option value="REVIEW">Em revisão</option><option value="INACTIVE">Inativo</option></select></label>
       </div><footer className="flex justify-end gap-2"><button type="button" onClick={() => setEditing(null)} className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600">Cancelar</button><button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Salvar alterações</button></footer>
     </form></div>}
