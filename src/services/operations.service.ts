@@ -10,10 +10,13 @@ const USE_API_FOR_LOCATIONS = true;
 const USE_API_FOR_MOVEMENTS = true;
 const USE_API_FOR_PRODUCTS = true;
 let cachedApiProducts: CatalogProduct[] = [];
+const categoryIdCache = new Map<string, string | null>();
 type ApiLocation = { id: string; name: string; type: StoreLocation["type"]; address: string | null; status: StoreLocation["status"] };
 type ApiProduct = {
   id: string; sku: string; name: string; description: string | null; barcode: string | null;
+  locationIds: string[];
   category: string | null; brand: string | null; supplier: string | null; minimumStock: number | null;
+  externalSystem: string | null; externalCode: string | null;
   costPrice: string; salePrice: string; defaultShelfLifeDays: number | null;
   isActive: boolean; unit: string; tracksExpiration: boolean;
 };
@@ -23,7 +26,7 @@ type ApiMovement = {
   location: string | null; sourceLocation: string | null; destinationLocation: string | null;
 };
 type ApiProductLot = { productId: string; locationId: string; quantity: string; expiryDate: string | null };
-type ApiSale = { id: string; receipt: string; date: string; location: string; items: string; payment: string; total: string; status: SaleTransaction["status"] };
+type ApiSale = { id: string; externalSystem: string; receipt: string; date: string; location: string; items: string; payment: string; total: string; status: SaleTransaction["status"]; stockApplied: boolean };
 const fromApiLocation = (location: ApiLocation): StoreLocation => ({
   ...location,
   address: location.address ?? "",
@@ -44,11 +47,14 @@ const fromApiProduct = (product: ApiProduct): CatalogProduct => {
     category: product.category ?? "Sem categoria",
     brand: product.brand ?? "",
     supplier: product.supplier ?? "",
+    externalSystem: product.externalSystem ?? undefined,
+    externalCode: product.externalCode ?? undefined,
     costPrice: Number(product.costPrice),
     salePrice: Number(product.salePrice),
     minimumStock: product.minimumStock ?? cached?.minimumStock ?? 0,
     shelfLifeDays: product.defaultShelfLifeDays ?? 0,
     locationsCount: cached?.locationsCount ?? 0,
+    linkedLocationIds: product.locationIds ?? cached?.linkedLocationIds ?? [],
     stockByLocation: cached?.stockByLocation,
     expiryByLocation: cached?.expiryByLocation,
     status: product.isActive ? "ACTIVE" : "INACTIVE",
@@ -57,13 +63,16 @@ const fromApiProduct = (product: ApiProduct): CatalogProduct => {
 const toMoneyString = (value: number) => value.toFixed(2);
 async function categoryIdByName(name: string): Promise<string | null> {
   if (name === "Sem categoria") return null;
+  const cachedId = categoryIdCache.get(name.toLocaleLowerCase());
+  if (cachedId !== undefined) return cachedId;
   const result = await apiFetch<{ items: Array<{ id: string; name: string }> }>("/categories?page=1&pageSize=100");
   const existing = result.items.find((category) => category.name.toLocaleLowerCase() === name.toLocaleLowerCase());
-  if (existing) return existing.id;
+  if (existing) { categoryIdCache.set(name.toLocaleLowerCase(), existing.id); return existing.id; }
   const created = await apiFetch<{ category: { id: string } }>("/categories", {
     method: "POST",
     body: JSON.stringify({ name }),
   });
+  categoryIdCache.set(name.toLocaleLowerCase(), created.category.id);
   return created.category.id;
 }
 const dateFromToday = (days: number) => { const date = new Date(); date.setHours(0, 0, 0, 0); date.setDate(date.getDate() + days); return date.toISOString().slice(0, 10); };
@@ -111,16 +120,20 @@ export const operationsService = {
   },
   async listProducts(): Promise<CatalogProduct[]> {
     if (!USE_API_FOR_PRODUCTS) return products;
-    const [result, firstLots] = await Promise.all([
-      apiFetch<{ items: ApiProduct[] }>("/products?page=1&pageSize=100"),
+    const [firstProducts, firstLots] = await Promise.all([
+      apiFetch<{ items: ApiProduct[]; pagination: { totalPages: number } }>("/products?page=1&pageSize=100"),
       apiFetch<{ items: ApiProductLot[]; pagination: { totalPages: number } }>("/stock/lots?page=1&pageSize=100"),
     ]);
-    const otherLots = await Promise.all(Array.from(
+    const [otherProducts, otherLots] = await Promise.all([Promise.all(Array.from(
+      { length: Math.max(0, firstProducts.pagination.totalPages - 1) },
+      (_, index) => apiFetch<{ items: ApiProduct[] }>(`/products?page=${index + 2}&pageSize=100`),
+    )), Promise.all(Array.from(
       { length: Math.max(0, firstLots.pagination.totalPages - 1) },
       (_, index) => apiFetch<{ items: ApiProductLot[] }>(`/stock/lots?page=${index + 2}&pageSize=100`),
-    ));
+    ))]);
     const lots = [firstLots, ...otherLots].flatMap((page) => page.items);
-    cachedApiProducts = result.items.map((item) => {
+    const apiProducts = [firstProducts, ...otherProducts].flatMap((page) => page.items);
+    cachedApiProducts = apiProducts.map((item) => {
       const product = fromApiProduct(item);
       const productLots = lots.filter((lot) => lot.productId === item.id);
       const stockByLocation: Record<string, number> = {};
@@ -131,7 +144,7 @@ export const operationsService = {
       }
       product.stockByLocation = stockByLocation;
       product.expiryByLocation = expiryByLocation;
-      product.locationsCount = new Set(productLots.filter((lot) => Number(lot.quantity) > 0).map((lot) => lot.locationId)).size;
+      product.locationsCount = new Set([...productLots.filter((lot) => Number(lot.quantity) > 0).map((lot) => lot.locationId), ...(product.linkedLocationIds ?? [])]).size;
       return product;
     });
     return cachedApiProducts;
@@ -156,6 +169,8 @@ export const operationsService = {
         description: null,
         brand: product.brand || null,
         supplier: product.supplier || null,
+        externalSystem: product.externalSystem || null,
+        externalCode: product.externalCode || null,
         minimumStock: product.minimumStock || null,
         barcode: product.barcode || null,
         categoryId,
@@ -181,6 +196,43 @@ export const operationsService = {
     }
     return (await this.listProducts()).find((item) => item.id === saved.id) ?? saved;
   },
+  async createImportedProduct(product: CatalogProduct, locationIds: string[] = []): Promise<CatalogProduct> {
+    if (!USE_API_FOR_PRODUCTS) {
+      const created = { ...product, id: `p-${Date.now()}` };
+      products.unshift(created);
+      return created;
+    }
+    const categoryId = product.category === "Sem categoria" ? null : await categoryIdByName(product.category);
+    const created = await apiFetch<{ product: ApiProduct }>("/products", {
+      method: "POST",
+      body: JSON.stringify({
+        sku: product.sku,
+        name: product.name,
+        description: null,
+        brand: product.brand || null,
+        supplier: product.supplier || null,
+        externalSystem: product.externalSystem || null,
+        externalCode: product.externalCode || null,
+        minimumStock: product.minimumStock || null,
+        barcode: product.barcode || null,
+        categoryId,
+        unit: "UN",
+        costPrice: toMoneyString(product.costPrice),
+        salePrice: toMoneyString(product.salePrice),
+        tracksExpiration: false,
+        defaultShelfLifeDays: null,
+        locationIds,
+      }),
+    });
+    return fromApiProduct(created.product);
+  },
+  async assignProductLocations(productId: string, locationIds: string[]): Promise<void> {
+    if (!USE_API_FOR_PRODUCTS) return;
+    await apiFetch(`/products/${encodeURIComponent(productId)}/locations`, {
+      method: "PUT",
+      body: JSON.stringify({ locationIds }),
+    });
+  },
   async updateProduct(product: CatalogProduct): Promise<CatalogProduct> {
     if (!USE_API_FOR_PRODUCTS) {
       const index = products.findIndex((item) => item.id === product.id);
@@ -204,6 +256,22 @@ export const operationsService = {
       }),
     });
     return fromApiProduct(result.product);
+  },
+  async linkExternalProductCode(product: CatalogProduct, externalSystem: string, externalCode: string): Promise<CatalogProduct> {
+    const result = await apiFetch<{ product: ApiProduct }>(`/products/${encodeURIComponent(product.id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ externalSystem, externalCode }),
+    });
+    return fromApiProduct(result.product);
+  },
+  async importSale(input: {
+    externalSystem: string; externalId: string; receipt: string; locationId: string; occurredAt: string;
+    paymentMethod: string; applyStock: boolean;
+    items: Array<{ productCode: string; quantity: string; unitPrice: string; lineTotal?: string }>;
+  }): Promise<{ sale: ApiSale; duplicate: boolean }> {
+    return apiFetch<{ sale: ApiSale; duplicate: boolean }>("/sales", {
+      method: "POST", body: JSON.stringify(input),
+    });
   },
   async updateProductInventory(productId: string, locationId: string, quantity: number, expiryDate: string): Promise<CatalogProduct> {
     if (!Number.isFinite(quantity) || quantity < 0) throw new Error("Informe uma quantidade válida, igual ou maior que zero.");
