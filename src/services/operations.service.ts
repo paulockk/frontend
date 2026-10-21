@@ -2,7 +2,7 @@ import { apiFetch } from "./api";
 import { renameExpiryLocationMock, updateExpiryMockForProductLocation } from "./mocks/expiry.mock";
 import { renameStockLocationMock } from "./mocks/stock.mock";
 import { renameDashboardLocationMock } from "./mocks/dashboard.mock";
-import type { CatalogProduct, MovementRecord, ReportCard, SaleTransaction, SalesReport, StoreLocation } from "../types/operations";
+import type { CatalogProduct, MovementRecord, ProductStockLot, ReportCard, SaleTransaction, SalesReport, StoreLocation } from "../types/operations";
 
 // Replace mock responses with API endpoints as the backend modules become available.
 const USE_MOCK = true;
@@ -22,10 +22,10 @@ type ApiProduct = {
 };
 type ApiMovement = {
   id: string; type: MovementRecord["type"]; sku: string; productName: string;
-  quantity: string; batchNumber: string | null; performedBy: string; createdAt: string;
+  quantity: string; unit: string; batchNumber: string | null; performedBy: string; createdAt: string;
   location: string | null; sourceLocation: string | null; destinationLocation: string | null;
 };
-type ApiProductLot = { productId: string; locationId: string; quantity: string; expiryDate: string | null };
+type ApiProductLot = { batchId: string; productId: string; sku: string; productName: string; locationId: string; location: string; batchNumber: string | null; quantity: string; unit: string; expiryDate: string | null };
 type ApiSale = { id: string; externalSystem: string; receipt: string; date: string; location: string; items: string; payment: string; total: string; status: SaleTransaction["status"]; stockApplied: boolean };
 const fromApiLocation = (location: ApiLocation): StoreLocation => ({
   ...location,
@@ -110,6 +110,13 @@ const reports: ReportCard[] = [
 ];
 
 export const operationsService = {
+  async listStockLots(): Promise<ProductStockLot[]> {
+    const firstPage = await apiFetch<{ items: ApiProductLot[]; pagination: { totalPages: number } }>("/stock/lots?page=1&pageSize=100");
+    const otherPages = await Promise.all(Array.from({ length: Math.max(0, firstPage.pagination.totalPages - 1) }, (_, index) =>
+      apiFetch<{ items: ApiProductLot[] }>(`/stock/lots?page=${index + 2}&pageSize=100`),
+    ));
+    return [firstPage, ...otherPages].flatMap((page) => page.items).map((lot) => ({ ...lot, quantity: Number(lot.quantity) }));
+  },
   async findProductByBarcode(barcode: string): Promise<CatalogProduct | null> {
     const normalizedBarcode = barcode.trim();
     if (!normalizedBarcode) return null;
@@ -219,8 +226,8 @@ export const operationsService = {
         unit: "UN",
         costPrice: toMoneyString(product.costPrice),
         salePrice: toMoneyString(product.salePrice),
-        tracksExpiration: false,
-        defaultShelfLifeDays: null,
+        tracksExpiration: product.tracksExpiration ?? false,
+        defaultShelfLifeDays: (product.tracksExpiration && product.shelfLifeDays > 0) ? product.shelfLifeDays : null,
         locationIds,
       }),
     });
@@ -231,6 +238,13 @@ export const operationsService = {
     await apiFetch(`/products/${encodeURIComponent(productId)}/locations`, {
       method: "PUT",
       body: JSON.stringify({ locationIds }),
+    });
+  },
+  async importVmPayStock(productId: string, items: Array<{ locationId: string; batchNumber: string; quantity: string }>): Promise<void> {
+    if (!items.length) return;
+    await apiFetch<{ updatedChannels: number }>("/stock/lots/vmpay-import", {
+      method: "POST",
+      body: JSON.stringify({ items: items.map((item) => ({ ...item, productId })) }),
     });
   },
   async updateProduct(product: CatalogProduct): Promise<CatalogProduct> {
@@ -356,14 +370,17 @@ export const operationsService = {
       const stockByLocation = { ...(product.stockByLocation ?? {}) };
       if (origin && deductFromOrigin) {
         const currentQuantity = stockByLocation[origin.id] ?? 0;
-        if (currentQuantity < movement.quantity) throw new Error(`Estoque insuficiente em ${origin.name}. Disponível: ${currentQuantity}.`);
-        stockByLocation[origin.id] = currentQuantity - movement.quantity;
+        const quantity = movement.quantity === 0 ? currentQuantity : movement.quantity;
+        if (quantity <= 0) throw new Error(`Não há estoque disponível em ${origin.name} para movimentar o lote inteiro.`);
+        if (currentQuantity < quantity) throw new Error(`Estoque insuficiente em ${origin.name}. Disponível: ${currentQuantity}.`);
+        created.quantity = quantity;
+        stockByLocation[origin.id] = currentQuantity - quantity;
       }
-      if (destination && addToDestination) stockByLocation[destination.id] = (stockByLocation[destination.id] ?? 0) + movement.quantity;
+      if (destination && addToDestination) stockByLocation[destination.id] = (stockByLocation[destination.id] ?? 0) + created.quantity;
       if (movement.type === "ADJUSTMENT") {
         const adjustmentLocation = destination ?? origin;
         if (!adjustmentLocation) throw new Error("Selecione o local do ajuste.");
-        stockByLocation[adjustmentLocation.id] = (stockByLocation[adjustmentLocation.id] ?? 0) + movement.quantity;
+        stockByLocation[adjustmentLocation.id] = (stockByLocation[adjustmentLocation.id] ?? 0) + created.quantity;
       }
       product.stockByLocation = stockByLocation;
       product.locationsCount = Object.values(stockByLocation).filter((quantity) => quantity > 0).length;
@@ -378,9 +395,11 @@ export const operationsService = {
       if (movement.type === "ADJUSTMENT") throw new Error("A API atual não oferece movimentação do tipo ajuste.");
       if (movement.type === "ENTRY") {
         if (!destination) throw new Error("Selecione um local de destino válido.");
-        const expiryDate = (product.tracksExpiration ?? product.shelfLifeDays > 0)
+        const tracksExpiration = product.tracksExpiration ?? product.shelfLifeDays > 0;
+        const expiryDate = movement.expiryDate || (tracksExpiration && product.shelfLifeDays > 0
           ? new Date(Date.now() + product.shelfLifeDays * 86_400_000).toISOString().slice(0, 10)
-          : null;
+          : null);
+        if (tracksExpiration && !expiryDate) throw new Error("Informe a validade real do lote para este produto.");
         const response = await apiFetch<{ movement: { id: string; createdAt: string; batchNumber: string | null } }>("/stock/movements", {
           method: "POST",
           body: JSON.stringify({ type: "ENTRY", productId: product.id, locationId: destination.id, quantity: String(movement.quantity), batchNumber: movement.batch === "—" ? null : movement.batch, expiryDate }),
@@ -388,23 +407,32 @@ export const operationsService = {
         return { ...movement, id: response.movement.id, date: response.movement.createdAt, batch: response.movement.batchNumber ?? "—", user: "Usuário autenticado", status: "COMPLETED" };
       }
       if (!origin) throw new Error("Selecione um local de origem válido.");
-      const lots = await apiFetch<{ items: Array<{ batchId: string; batchNumber: string | null; quantity: string }> }>(`/stock/lots?page=1&pageSize=100&productId=${encodeURIComponent(product.id)}&locationId=${encodeURIComponent(origin.id)}`);
-      const sourceBatch = lots.items.find((lot) => !movement.batch || movement.batch === "—" || lot.batchNumber === movement.batch);
+      const lotQuery = new URLSearchParams({ page: "1", pageSize: "100", productId: product.id, locationId: origin.id });
+      const firstLots = await apiFetch<{ items: Array<{ batchId: string; batchNumber: string | null; quantity: string }>; pagination: { totalPages: number } }>(`/stock/lots?${lotQuery}`);
+      const otherLotPages = await Promise.all(Array.from(
+        { length: Math.max(0, firstLots.pagination.totalPages - 1) },
+        (_, index) => apiFetch<{ items: Array<{ batchId: string; batchNumber: string | null; quantity: string }> }>(`/stock/lots?${lotQuery.toString().replace("page=1", `page=${index + 2}`)}`),
+      ));
+      const sourceBatch = [firstLots, ...otherLotPages].flatMap((page) => page.items)
+        .find((lot) => !movement.batch || movement.batch === "—" || lot.batchNumber === movement.batch);
       if (!sourceBatch) throw new Error("Não há lote compatível com o produto e local selecionados.");
-      if (Number(sourceBatch.quantity) < movement.quantity) throw new Error(`Saldo insuficiente no lote. Disponível: ${sourceBatch.quantity}.`);
+      const quantity = movement.quantity === 0 ? Number(sourceBatch.quantity) : movement.quantity;
+      if (quantity <= 0) throw new Error("O lote selecionado não tem saldo disponível.");
+      if (Number(sourceBatch.quantity) < quantity) throw new Error(`Saldo insuficiente no lote. Disponível: ${sourceBatch.quantity}.`);
+      created.quantity = quantity;
       if (movement.type === "TRANSFER") {
         if (!destination) throw new Error("Selecione um local de destino válido.");
         const response = await apiFetch<{ transfer: { id: string; createdAt: string; batchNumber: string | null } }>("/stock/transfers", {
           method: "POST",
-          body: JSON.stringify({ sourceBatchId: sourceBatch.batchId, destinationLocationId: destination.id, quantity: String(movement.quantity) }),
+          body: JSON.stringify({ sourceBatchId: sourceBatch.batchId, destinationLocationId: destination.id, quantity: String(quantity) }),
         });
-        return { ...movement, id: response.transfer.id, date: response.transfer.createdAt, batch: response.transfer.batchNumber ?? "—", user: "Usuário autenticado", status: "COMPLETED" };
+        return { ...movement, quantity, id: response.transfer.id, date: response.transfer.createdAt, batch: response.transfer.batchNumber ?? "—", user: "Usuário autenticado", status: "COMPLETED" };
       }
       const response = await apiFetch<{ movement: { id: string; createdAt: string; batchNumber: string | null } }>("/stock/movements", {
         method: "POST",
-        body: JSON.stringify({ type: "EXIT", batchId: sourceBatch.batchId, quantity: String(movement.quantity) }),
+        body: JSON.stringify({ type: "EXIT", batchId: sourceBatch.batchId, quantity: String(quantity) }),
       });
-      return { ...movement, id: response.movement.id, date: response.movement.createdAt, batch: response.movement.batchNumber ?? "—", user: "Usuário autenticado", status: "COMPLETED" };
+      return { ...movement, quantity, id: response.movement.id, date: response.movement.createdAt, batch: response.movement.batchNumber ?? "—", user: "Usuário autenticado", status: "COMPLETED" };
     }
     return created;
   },
@@ -454,14 +482,19 @@ export const operationsService = {
   },
   async listMovements(): Promise<MovementRecord[]> {
     if (!USE_API_FOR_MOVEMENTS) return movements;
-    const result = await apiFetch<{ items: ApiMovement[] }>("/stock/movements?page=1&pageSize=100");
-    return result.items.map((movement) => ({
+    const firstPage = await apiFetch<{ items: ApiMovement[]; pagination: { totalPages: number } }>("/stock/movements?page=1&pageSize=100");
+    const otherPages = await Promise.all(Array.from(
+      { length: Math.max(0, firstPage.pagination.totalPages - 1) },
+      (_, index) => apiFetch<{ items: ApiMovement[] }>(`/stock/movements?page=${index + 2}&pageSize=100`),
+    ));
+    return [firstPage, ...otherPages].flatMap((page) => page.items).map((movement) => ({
       id: movement.id,
       date: movement.createdAt,
       type: movement.type,
       productName: movement.productName,
       sku: movement.sku,
       quantity: Number(movement.quantity),
+      unit: movement.unit,
       origin: movement.sourceLocation ?? (movement.type === "EXIT" ? movement.location : null),
       destination: movement.destinationLocation ?? (movement.type === "ENTRY" ? movement.location : null),
       batch: movement.batchNumber ?? "—",

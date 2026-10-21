@@ -7,6 +7,7 @@ export interface VmPayProductCandidate {
   salePrice: number;
   sourceRows: number;
   sourceLocations: string[];
+  stockLots: Array<{ sourceLocation: string; batchNumber: string; quantity: string }>;
   issue?: string;
 }
 
@@ -155,35 +156,67 @@ function candidatesFromRows(rows: unknown[][]): VmPayProductImportPreview {
   const headers = rows[headerIndex]!.map((value) => normalizeHeader(String(value ?? "")));
   const nameIndex = headers.indexOf("produto");
   const locationIndex = headers.indexOf("local");
+  const machineIndex = headers.indexOf("maquina");
+  const channelIndex = headers.indexOf("canaleta");
+  const quantityIndex = headers.indexOf("quantidade");
+  if ([locationIndex, machineIndex, channelIndex, quantityIndex].some((index) => index < 0)) {
+    throw new Error("A exportação precisa conter Local, Máquina, Canaleta e Quantidade para gerar os lotes por local.");
+  }
+  const dateIndexes = [headers.indexOf("datadeaplicacao"), headers.indexOf("datadeatualizacao"), headers.indexOf("datadecadastro")].filter((index) => index >= 0);
   const saleIndex = headers.indexOf("precodesejado");
   const costIndex = headers.findIndex((header) => costPriceHeaders.includes(header));
-  const grouped = new Map<string, { name: string; costPrice: number; salePrice: number; sourceRows: number; sourceLocations: string[]; issue?: string }>();
+  const latestChannels = new Map<string, { name: string; costPrice: number | null; salePrice: number | null; sourceLocation: string; machine: string; channel: string; quantity: number; date: number; sourceRow: number }>();
   let totalRows = 0;
-  for (const row of rows.slice(headerIndex + 1)) {
+  let invalidChannelRow: number | null = null;
+  for (const [offset, row] of rows.slice(headerIndex + 1).entries()) {
     const name = String(row[nameIndex] ?? "").trim();
     if (!name) continue;
     totalRows += 1;
     const costPrice = parsePrice(row[costIndex]);
     const salePrice = parsePrice(row[saleIndex]);
     const sourceLocation = String(row[locationIndex] ?? "").trim();
-    const key = normalize(name);
-    const existing = grouped.get(key);
-    if (!existing) {
-      grouped.set(key, {
-        name,
-        costPrice: costPrice ?? 0,
-        salePrice: salePrice ?? 0,
-        sourceRows: 1,
-        sourceLocations: sourceLocation ? [sourceLocation] : [],
-        ...((costPrice === null || salePrice === null) ? { issue: "Preço de custo ou preço de venda ausente/inválido." } : {}),
-      });
+    const machine = String(row[machineIndex] ?? "").trim();
+    const channel = String(row[channelIndex] ?? "").trim();
+    const quantityValue = parsePrice(row[quantityIndex]);
+    let timestamp = 0;
+    for (const dateIndex of dateIndexes) {
+      const date = String(row[dateIndex] ?? "").trim();
+      const match = date.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+      if (match) { timestamp = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]), Number(match[4] ?? 0), Number(match[5] ?? 0), Number(match[6] ?? 0)).getTime(); break; }
+    }
+    const channelKey = `${normalize(sourceLocation)}|${normalize(machine)}|${normalize(channel)}`;
+    if (!sourceLocation || !machine || !channel || quantityValue === null || !Number.isInteger(quantityValue)) {
+      invalidChannelRow ??= headerIndex + offset + 2;
       continue;
     }
-    existing.sourceRows += 1;
-    if (sourceLocation && !existing.sourceLocations.includes(sourceLocation)) existing.sourceLocations.push(sourceLocation);
-    if (costPrice === null || salePrice === null) existing.issue = "Há uma linha sem preço válido para este produto.";
-    else if (existing.costPrice !== costPrice || existing.salePrice !== salePrice) existing.issue = "O arquivo tem preços diferentes para o mesmo produto; revise antes de importar.";
+    const current = latestChannels.get(channelKey);
+    if (!current || timestamp > current.date || (timestamp === current.date && offset >= current.sourceRow)) {
+      latestChannels.set(channelKey, { name, costPrice, salePrice, sourceLocation, machine, channel, quantity: quantityValue, date: timestamp, sourceRow: offset });
+    }
   }
+  if (invalidChannelRow !== null) {
+    throw new Error(`A linha ${invalidChannelRow} tem Local, Máquina, Canaleta ou Quantidade ausente/inválida. Corrija a exportação antes de importar.`);
+  }
+  const grouped = new Map<string, { name: string; costPrice: number; salePrice: number; sourceRows: number; sourceLocations: string[]; stockLots: Array<{ sourceLocation: string; batchNumber: string; quantity: string }>; issue?: string }>();
+  for (const current of latestChannels.values()) {
+    const key = normalize(current.name);
+    const safeChannel = `${current.machine}-${current.channel}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 70);
+    const item = grouped.get(key);
+    if (!item) grouped.set(key, {
+      name: current.name, costPrice: current.costPrice ?? 0, salePrice: current.salePrice ?? 0,
+      sourceRows: 1, sourceLocations: [current.sourceLocation],
+      stockLots: [{ sourceLocation: current.sourceLocation, batchNumber: `VMPAY:${safeChannel}`, quantity: String(current.quantity) }],
+      ...((current.costPrice === null || current.salePrice === null) ? { issue: "Preço de custo ou preço de venda ausente/inválido." } : {}),
+    });
+    else {
+      item.sourceRows += 1;
+      if (!item.sourceLocations.includes(current.sourceLocation)) item.sourceLocations.push(current.sourceLocation);
+      item.stockLots.push({ sourceLocation: current.sourceLocation, batchNumber: `VMPAY:${safeChannel}`, quantity: String(current.quantity) });
+      if (current.costPrice === null || current.salePrice === null) item.issue = "Há uma linha sem preço válido para este produto.";
+      else if (item.costPrice !== current.costPrice || item.salePrice !== current.salePrice) item.issue = "O arquivo tem preços diferentes para o mesmo produto; revise antes de importar.";
+    }
+  }
+  if (!grouped.size) throw new Error("Não encontrei canaletas com Local, Máquina, Canaleta e Quantidade válidos nessa exportação.");
   return {
     totalRows,
     candidates: [...grouped.values()].map((item) => ({ ...item, sku: makeSku(item.name) })),

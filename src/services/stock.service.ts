@@ -1,5 +1,6 @@
 ﻿import { apiFetch } from "./api";
 import { getStockMock } from "./mocks/stock.mock";
+import { operationsService } from "./operations.service";
 import type { StockFilters, StockListResponse } from "../types/stock";
 import type { Batch, Category, Location, Product, Stock } from "../types/entities";
 
@@ -55,11 +56,12 @@ export const stockService = {
   async list(filters: StockFilters): Promise<StockListResponse> {
     if (USE_MOCK) return getStockMock(filters);
     const query = queryString(filters);
-    const [firstPage, locationResult, categoryResult, alertResult] = await Promise.all([
+    const [firstPage, locationResult, categoryResult, alertResult, products] = await Promise.all([
       apiFetch<{ items: ApiLot[]; pagination: { totalPages: number } }>(`/stock/lots?${query}`),
       apiFetch<{ items: ApiLocation[] }>("/locations?page=1&pageSize=100"),
       apiFetch<{ items: ApiCategory[] }>("/categories?page=1&pageSize=100"),
       apiFetch<{ lowStock: { items: LowStockItem[] } }>("/stock/alerts?limit=100"),
+      operationsService.listProducts(),
     ]);
     const otherPages = await Promise.all(Array.from(
       { length: Math.max(0, firstPage.pagination.totalPages - 1) },
@@ -83,7 +85,7 @@ export const stockService = {
       items: mapped.slice(start, start + filters.pageSize),
       summary: {
         totalUnits: mapped.reduce((sum, item) => sum + item.stock.quantity, 0),
-        totalCost: 0,
+        totalCost: Math.round(mapped.reduce((sum, item) => sum + item.stock.quantity * (products.find((product) => product.id === item.product.id)?.costPrice ?? 0), 0) * 100),
         normalProducts: mapped.filter((item) => item.status === "NORMAL").length,
         lowStockProducts: mapped.filter((item) => item.status === "LOW").length,
         outOfStockProducts: mapped.filter((item) => item.status === "OUT_OF_STOCK").length,

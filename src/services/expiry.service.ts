@@ -1,4 +1,5 @@
 import { apiFetch } from "./api";
+import { operationsService } from "./operations.service";
 import type { ExpiryFilters, ExpiryListResponse, ExpirySeverity } from "../types/expiry";
 
 type ApiStockLot = {
@@ -23,8 +24,17 @@ type ApiStockLotPage = {
 const severityOrder: ExpirySeverity[] = ["EXPIRED", "CRITICAL", "WARNING", "REGULAR"];
 
 export const expiryService = {
+  async updateExpiryDate(batchId: string, expiryDate: string): Promise<void> {
+    await apiFetch(`/stock/lots/${encodeURIComponent(batchId)}/expiry`, {
+      method: "PATCH",
+      body: JSON.stringify({ expiryDate }),
+    });
+  },
   async list(filters: ExpiryFilters): Promise<ExpiryListResponse> {
-    const firstPage = await apiFetch<ApiStockLotPage>("/stock/lots?page=1&pageSize=100");
+    const [firstPage, products] = await Promise.all([
+      apiFetch<ApiStockLotPage>("/stock/lots?page=1&pageSize=100"),
+      operationsService.listProducts(),
+    ]);
     const remainingPages = await Promise.all(
       Array.from({ length: Math.max(0, firstPage.pagination.totalPages - 1) }, (_, index) =>
         apiFetch<ApiStockLotPage>(`/stock/lots?page=${index + 2}&pageSize=100`),
@@ -46,7 +56,7 @@ export const expiryService = {
         daysRemaining: lot.daysRemaining ?? 0,
         quantity: Number(lot.quantity),
         unit: lot.unit,
-        totalCost: 0,
+        totalCost: Number(lot.quantity) * (products.find((product) => product.sku === lot.sku)?.costPrice ?? 0),
         severity: lot.severity,
         recommendedAction: lot.severity === "EXPIRED" ? "Baixar lote" : "Priorizar saída PEPS",
       }));
@@ -62,7 +72,7 @@ export const expiryService = {
     const summary = severityOrder.map((severity) => ({
       severity,
       lotCount: matchingLots.filter((lot) => lot.severity === severity).length,
-      totalCost: 0,
+      totalCost: matchingLots.filter((lot) => lot.severity === severity).reduce((total, lot) => total + lot.totalCost, 0),
     }));
 
     return {
