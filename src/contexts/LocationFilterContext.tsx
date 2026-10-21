@@ -41,6 +41,7 @@ export function LocationFilterProvider({ children }: { children: ReactNode }) {
   const matchesLocation = useCallback((candidate: string | null | undefined) => {
     if (selectedLocationId === "all") return true;
     if (!candidate || !selectedLocation) return false;
+    if (candidate === selectedLocation.id) return true;
     const selected = normalize(selectedLocation.name);
     const value = normalize(candidate);
     if (selected === value) return true;

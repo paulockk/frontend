@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { Check, Pencil, X } from "lucide-react";
+import { expiryService } from "../../services/expiry.service";
 import type { ExpiryLot } from "../../types/expiry";
 
 const dateFormat = new Intl.DateTimeFormat("pt-BR", {
@@ -12,6 +15,8 @@ const currency = new Intl.NumberFormat("pt-BR", {
 interface ExpiryTableProps {
   items: ExpiryLot[];
   loading: boolean;
+  canEditExpiry: boolean;
+  onExpiryUpdated: () => void;
 }
 
 function getDeadlineTone(daysRemaining: number) {
@@ -29,7 +34,27 @@ function formatDeadline(daysRemaining: number) {
 export function ExpiryTable({
   items,
   loading,
+  canEditExpiry,
+  onExpiryUpdated,
 }: ExpiryTableProps) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draftDate, setDraftDate] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const saveExpiry = async (batchId: string) => {
+    setSaving(true);
+    setError("");
+    try {
+      await expiryService.updateExpiryDate(batchId, draftDate);
+      setEditingId(null);
+      onExpiryUpdated();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível atualizar a validade.");
+    } finally {
+      setSaving(false);
+    }
+  };
   if (loading) {
     return <div className="p-12 text-center text-sm text-slate-500">Carregando lotes...</div>;
   }
@@ -98,9 +123,21 @@ export function ExpiryTable({
                 </td>
                 <td className="px-3 py-3 text-slate-600">{lot.recommendedAction}</td>
                 <td className="px-4 py-3 text-center">
-                  <span className={`whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${operationClass}`}>
-                    {operationLabel}
-                  </span>
+                  <div className="flex flex-col items-center gap-2">
+                    <span className={`whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${operationClass}`}>
+                      {operationLabel}
+                    </span>
+                    {canEditExpiry && (editingId === lot.id ? (
+                      <div className="flex items-center gap-1">
+                        <input aria-label={`Nova validade para o lote ${lot.batchNumber}`} type="date" value={draftDate} onChange={(event) => setDraftDate(event.target.value)} className="w-36 rounded border border-slate-200 px-2 py-1 text-xs" />
+                        <button type="button" aria-label="Salvar validade" disabled={!draftDate || saving} onClick={() => void saveExpiry(lot.id)} className="rounded bg-blue-600 p-1.5 text-white disabled:opacity-50"><Check className="h-3.5 w-3.5" /></button>
+                        <button type="button" aria-label="Cancelar edição" disabled={saving} onClick={() => { setEditingId(null); setError(""); }} className="rounded bg-slate-100 p-1.5 text-slate-600"><X className="h-3.5 w-3.5" /></button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => { setEditingId(lot.id); setDraftDate(lot.expiryDate.slice(0, 10)); setError(""); }} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"><Pencil className="h-3 w-3" />Editar validade</button>
+                    ))}
+                    {editingId === lot.id && error && <p role="alert" className="max-w-40 text-xs text-red-600">{error}</p>}
+                  </div>
                 </td>
               </tr>
             );

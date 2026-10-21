@@ -11,7 +11,6 @@ import { ThemeToggle } from "./ThemeToggle";
 import {
   DEFAULT_GATEWAY_STATUS,
   DEFAULT_HEADER_USER,
-  DEFAULT_LOCATIONS,
 } from "./header.data";
 
 import type { HeaderProps } from "./header.types";
@@ -24,7 +23,6 @@ export const Header: React.FC<HeaderProps> = ({
 
   user = DEFAULT_HEADER_USER,
 
-  locations = DEFAULT_LOCATIONS,
 
   isAdmin,
   onSwitchAccount,
@@ -49,7 +47,7 @@ export const Header: React.FC<HeaderProps> = ({
         />
 
         <HeaderLocation
-          locations={locationFilter.locations.length ? locationOptions : locations}
+          locations={locationOptions}
           selectedLocation={locationFilter.selectedLocationId}
           onLocationChange={locationFilter.setSelectedLocationId}
         />

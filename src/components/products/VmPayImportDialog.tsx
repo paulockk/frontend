@@ -25,6 +25,7 @@ export function VmPayImportDialog({
   const [progress, setProgress] = useState(0);
   const [failures, setFailures] = useState<Record<string, string>>({});
   const [locationMapping, setLocationMapping] = useState<Record<string, string>>({});
+  const [trackExpiration, setTrackExpiration] = useState(true);
   const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ").toLocaleLowerCase("pt-BR");
   const sourceLocations = [...new Set(candidates.flatMap((candidate) => candidate.sourceLocations))];
   const mappedIds = (candidate: VmPayProductCandidate) => [...new Set(candidate.sourceLocations.map((name) => locationMapping[name]).filter(Boolean))];
@@ -69,43 +70,54 @@ export function VmPayImportDialog({
       }
       const existing = findExistingProduct(candidate, knownProducts);
       const targetLocations = mappedIds(candidate);
-      if (existing) {
-        try {
+      try {
+        let saved: CatalogProduct;
+        if (existing) {
           const allLocations = [...new Set([...(existing.linkedLocationIds ?? []), ...targetLocations])];
           await operationsService.assignProductLocations(existing.id, allLocations);
-          imported.push({ ...existing, linkedLocationIds: allLocations });
-        } catch (cause) {
-          setFailures((current) => ({ ...current, [candidate.sku]: cause instanceof Error ? cause.message : "Falha ao associar locais." }));
+          saved = { ...existing, linkedLocationIds: allLocations };
+        } else {
+          seen.add(key);
+          const product: CatalogProduct = {
+            id: "pending",
+            sku: candidate.sku,
+            barcode: "",
+            name: candidate.name,
+            category: "Outros",
+            brand: "",
+            supplier: "",
+            unit: "UN",
+            tracksExpiration: trackExpiration,
+            costPrice: candidate.costPrice,
+            salePrice: candidate.salePrice,
+            minimumStock: 0,
+            shelfLifeDays: 0,
+            locationsCount: 0,
+            status: "ACTIVE",
+          };
+          saved = await operationsService.createImportedProduct(product, targetLocations);
+          knownProducts.push(saved);
         }
-        completed += 1; setProgress(completed); continue;
-      }
-      seen.add(key);
-      const product: CatalogProduct = {
-        id: "pending",
-        sku: candidate.sku,
-        barcode: "",
-        name: candidate.name,
-        category: "Outros",
-        brand: "",
-        supplier: "",
-        unit: "UN",
-        tracksExpiration: false,
-        costPrice: candidate.costPrice,
-        salePrice: candidate.salePrice,
-        minimumStock: 0,
-        shelfLifeDays: 0,
-        locationsCount: 0,
-        status: "ACTIVE",
-      };
-      try {
-        const saved = await operationsService.createImportedProduct(product, targetLocations);
-        imported.push(saved); knownProducts.push(saved);
+        const stockItems = candidate.stockLots.map((lot) => ({
+          locationId: locationMapping[lot.sourceLocation]!,
+          batchNumber: lot.batchNumber,
+          quantity: lot.quantity,
+        }));
+        await operationsService.importVmPayStock(saved.id, stockItems);
+        imported.push(saved);
       } catch (cause) {
-        setFailures((current) => ({ ...current, [candidate.sku]: cause instanceof Error ? cause.message : "Falha ao salvar." }));
+        setFailures((current) => ({ ...current, [candidate.sku]: cause instanceof Error ? cause.message : "Falha ao importar produto e saldo." }));
       }
       completed += 1; setProgress(completed);
     }
-    if (imported.length) onImported(imported);
+    if (imported.length) {
+      try {
+        const refreshedProducts = await operationsService.listProducts();
+        onImported(imported.map((item) => refreshedProducts.find((product) => product.id === item.id) ?? item));
+      } catch {
+        onImported(imported);
+      }
+    }
     setImporting(false);
   };
 
@@ -123,7 +135,8 @@ export function VmPayImportDialog({
         {fileName && <p className="text-xs text-slate-500">Arquivo: <span className="font-semibold text-slate-700">{fileName}</span></p>}
         {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
         {candidates.length > 0 && <>
-          {sourceLocations.length > 0 && <div className="space-y-2 rounded-xl border border-slate-200 p-3"><p className="text-sm font-semibold text-slate-800">Vincular locais do VMpay</p><p className="text-xs text-slate-500">Associe cada local do arquivo a um local cadastrado no Stockflow. Isso não altera o saldo.</p>{sourceLocations.map((name) => <label key={name} className="grid gap-2 text-xs font-medium text-slate-600 sm:grid-cols-[1fr_1fr] sm:items-center"><span>{name}</span><select value={locationMapping[name] ?? ""} onChange={(event) => setLocationMapping((current) => ({ ...current, [name]: event.target.value }))} className="rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">Selecione o local</option>{locations.filter((location) => location.status === "ACTIVE").map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>)}</div>}
+          {sourceLocations.length > 0 && <div className="space-y-2 rounded-xl border border-slate-200 p-3"><p className="text-sm font-semibold text-slate-800">Vincular locais do VMpay</p><p className="text-xs text-slate-500">Associe cada local do arquivo a um local cadastrado no Stockflow. O saldo por máquina e canaleta será atualizado.</p>{sourceLocations.map((name) => <label key={name} className="grid gap-2 text-xs font-medium text-slate-600 sm:grid-cols-[1fr_1fr] sm:items-center"><span>{name}</span><select value={locationMapping[name] ?? ""} onChange={(event) => setLocationMapping((current) => ({ ...current, [name]: event.target.value }))} className="rounded-lg border border-slate-200 px-3 py-2 text-sm"><option value="">Selecione o local</option>{locations.filter((location) => location.status === "ACTIVE").map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>)}</div>}
+          <label className="flex items-start gap-2 rounded-lg border border-slate-200 p-3 text-sm text-slate-700"><input type="checkbox" checked={trackExpiration} onChange={(event) => setTrackExpiration(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-blue-600"/><span><span className="font-semibold">Controlar validade dos novos produtos</span><span className="mt-1 block text-xs text-slate-500">O VMpay não informa validade. Depois da importação, você pode editar a data diretamente no lote.</span></span></label>
           <div className="flex flex-wrap gap-x-5 gap-y-1 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600"><span><b>{totalRows}</b> linhas lidas</span><span><b>{candidates.length}</b> produtos distintos</span><span><b>{available.length}</b> prontos para importar</span><span><b>{skipped}</b> ignorados ou precisam revisão</span></div>
           <div className="overflow-x-auto rounded-xl border border-slate-200"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-2.5">Produto e SKU gerado</th><th className="px-3 py-2.5 text-right">Custo</th><th className="px-3 py-2.5 text-right">Preço desejado</th><th className="px-3 py-2.5 text-right">Linhas</th><th className="px-3 py-2.5">Situação</th></tr></thead><tbody className="divide-y divide-slate-100">{candidates.map((candidate) => {
             const existing = findExistingProduct(candidate, products);
@@ -131,7 +144,7 @@ export function VmPayImportDialog({
             const status = failure ? failure : candidate.issue ? candidate.issue : !isMapped(candidate) ? "Vincule os locais acima" : existing ? `Associar locais a ${existing.sku}` : "Pronto";
             return <tr key={candidate.sku}><td className="px-3 py-2.5"><p className="font-medium text-slate-800">{candidate.name}</p><p className="font-mono text-[11px] text-slate-400">{candidate.sku}</p></td><td className="px-3 py-2.5 text-right tabular-nums">{money.format(candidate.costPrice)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money.format(candidate.salePrice)}</td><td className="px-3 py-2.5 text-right">{candidate.sourceRows}</td><td className={`max-w-xs px-3 py-2.5 text-xs ${failure || candidate.issue ? "text-amber-700" : "text-slate-500"}`}>{status}</td></tr>;
           })}</tbody></table></div>
-          <p className="text-xs leading-5 text-slate-500">Este arquivo não traz EAN, fornecedor, categoria, lotes ou saldo atual. Os produtos serão criados sem código de barras, na categoria “Outros” e com estoque zero. O SKU mostrado é gerado pelo Stockflow.</p>
+          <p className="text-xs leading-5 text-slate-500">Este arquivo não traz EAN, fornecedor, categoria ou validade. Os lotes serão identificados por máquina e canaleta; a validade pode ser editada depois. O SKU mostrado é gerado pelo Stockflow.</p>
         </>}
         {importing && <div className="flex items-center gap-2 text-sm text-blue-700"><LoaderCircle className="h-4 w-4 animate-spin" />Importando {progress} de {candidates.length} registros...</div>}
       </div>

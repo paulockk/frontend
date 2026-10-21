@@ -29,7 +29,6 @@ export interface QuickProductFormData {
   minStockGlobal: string;
   expiryDate: string;
   initialStockByLocation: Record<string, string>;
-  unit: string;
   isPerishable: boolean;
 }
 
@@ -62,7 +61,6 @@ function createInitialForm(): QuickProductFormData {
     minStockGlobal: "30",
     expiryDate: defaultExpiryDate(),
     initialStockByLocation: {},
-    unit: "un",
     isPerishable: false,
   };
 }
@@ -299,20 +297,6 @@ export function QuickProductForm({
               <option>Outros</option>
             </select>
           </Field>
-          <Field label="Unidade de medida">
-            <select
-              value={form.unit}
-              onChange={(event) => update({ unit: event.target.value })}
-              className={inputClass}
-            >
-              <option value="un">Unidade (un)</option>
-              <option value="kg">Quilograma (kg)</option>
-              <option value="g">Grama (g)</option>
-              <option value="l">Litro (l)</option>
-              <option value="ml">Mililitro (ml)</option>
-              <option value="m">Metro (m)</option>
-            </select>
-          </Field>
           <label className="flex items-center gap-2 self-end pb-2 text-sm text-slate-700">
             <input
               type="checkbox"
@@ -517,7 +501,7 @@ export function quickFormToProduct(
     sku: data.sku || data.barcode,
     barcode: data.barcode,
     name: data.name,
-    unit: data.unit.toUpperCase(),
+    unit: "UN",
     tracksExpiration: data.isPerishable,
     brand: data.brand,
     supplier: data.supplier,
