@@ -22,7 +22,12 @@ export async function apiFetch<T>(
     const headers = new Headers(options?.headers);
     if (!headers.has("Content-Type") && options?.body) headers.set("Content-Type", "application/json");
     if (token) headers.set("Authorization", `Bearer ${token}`);
-    return fetch(`${API_URL}${endpoint}`, { ...options, credentials: "include", headers });
+    return fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      credentials: "include",
+      headers,
+      ...(options?.method && options.method.toUpperCase() !== "GET" ? {} : { cache: "no-store" as const }),
+    });
   };
 
   let response = await request(accessToken);
