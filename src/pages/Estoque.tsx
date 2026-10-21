@@ -23,7 +23,7 @@ const initialFilters: Filters = {
 };
 export default function Estoque() {
   const navigate = useNavigate();
-  const { selectedLocationId, selectedLocation, matchesLocation } = useLocationFilter();
+  const { selectedLocationId, selectedLocation } = useLocationFilter();
   const [filters, setFilters] = useState(initialFilters);
   const [data, setData] = useState<StockListResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,11 +65,9 @@ export default function Estoque() {
       setFilters((current) => current.locationId === "ALL" ? current : { ...current, locationId: "ALL", page: 1 });
       return;
     }
-    if (!selectedLocation || !data?.locations.length) return;
-    const matched = data.locations.find((location) => matchesLocation(location.name));
-    const locationId = matched?.id ?? "__NO_MATCH__";
-    setFilters((current) => current.locationId === locationId ? current : { ...current, locationId, page: 1 });
-  }, [selectedLocationId, selectedLocation, data?.locations, matchesLocation]);
+    if (!selectedLocation) return;
+    setFilters((current) => current.locationId === selectedLocation.id ? current : { ...current, locationId: selectedLocation.id, page: 1 });
+  }, [selectedLocationId, selectedLocation]);
   return (
     <div className="min-w-0 space-y-6 p-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
