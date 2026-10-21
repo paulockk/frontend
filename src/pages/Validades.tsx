@@ -5,6 +5,7 @@ import { ExpiryFilters } from "../components/expiry/ExpiryFilters";
 import { ExpirySummary } from "../components/expiry/ExpirySummary";
 import { ExpiryTable } from "../components/expiry/ExpiryTable";
 import { useLocationFilter } from "../contexts/LocationFilterContext";
+import { useAuth } from "../contexts/AuthContext";
 import { expiryService } from "../services/expiry.service";
 import type {
   ExpiryFilters as Filters,
@@ -23,6 +24,8 @@ const initialFilters = (search: string): Filters => ({
 export default function Validades() {
   const [searchParams] = useSearchParams();
   const { selectedLocationId, selectedLocation } = useLocationFilter();
+  const { user } = useAuth();
+  const canEditExpiry = user?.role === "ADMIN" || Boolean(user?.permissions.includes("stock.manage"));
   const [filters, setFilters] = useState(() =>
     initialFilters(searchParams.get("search") ?? ""),
   );
@@ -154,6 +157,8 @@ export default function Validades() {
         <ExpiryTable
           items={data?.items ?? []}
           loading={loading}
+          canEditExpiry={canEditExpiry}
+          onExpiryUpdated={refresh}
         />
         <footer className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/50 px-4 py-3 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-3">
