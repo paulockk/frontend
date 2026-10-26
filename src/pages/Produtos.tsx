@@ -8,9 +8,10 @@ import { VmPayImportDialog } from "../components/products/VmPayImportDialog";
 import { useAuth } from "../contexts/AuthContext";
 import { useLocationFilter } from "../contexts/LocationFilterContext";
 import { expiryService } from "../services/expiry.service";
+import { formatIsoDateAsBrazilian, maskBrazilianDate, parseBrazilianDate } from "../utils/date";
 
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-const shortDate = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeZone: "UTC" });
+const shortDate = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" });
 const inputClass = "mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm";
 
 export default function Produtos() {
@@ -129,16 +130,18 @@ export default function Produtos() {
 function Metric({ icon, label, value }: { icon?: ReactNode; label: string; value: string }) { return <article className="rounded-xl border border-slate-200 bg-white p-4"><div className="flex justify-between text-xs font-semibold uppercase text-slate-500">{label}<span className="text-blue-600">{icon}</span></div><p className="mt-2 text-2xl font-bold text-slate-900">{value}</p></article>; }
 
 function ProductLotExpiryEditor({ lot, canEdit, onSave }: { lot: ProductStockLot; canEdit: boolean; onSave: (expiryDate: string) => Promise<void> }) {
-  const [expiryDate, setExpiryDate] = useState(lot.expiryDate?.slice(0, 10) ?? "");
+  const [expiryDate, setExpiryDate] = useState(formatIsoDateAsBrazilian(lot.expiryDate));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
-  useEffect(() => { setExpiryDate(lot.expiryDate?.slice(0, 10) ?? ""); }, [lot.expiryDate]);
+  useEffect(() => { setExpiryDate(formatIsoDateAsBrazilian(lot.expiryDate)); }, [lot.expiryDate]);
   const save = async () => {
+    const isoDate = parseBrazilianDate(expiryDate);
+    if (!isoDate) { setMessage("Digite uma data válida no formato dd/mm/aaaa."); return; }
     setSaving(true); setMessage("");
-    try { await onSave(expiryDate); setMessage("Validade salva."); }
+    try { await onSave(isoDate); setMessage("Validade salva."); }
     catch (cause) { setMessage(cause instanceof Error ? cause.message : "Não foi possível salvar a validade."); }
     finally { setSaving(false); }
   };
-  return <div className="flex flex-wrap items-end gap-3 rounded-lg bg-slate-50 p-3"><div className="min-w-40 flex-1"><p className="text-sm font-semibold text-slate-700">Lote {lot.batchNumber ?? "sem identificação"}</p><p className="text-xs text-slate-500">{lot.location} · {lot.quantity} {lot.unit}</p></div><label className="text-xs font-semibold text-slate-500">Validade<input type="date" required value={expiryDate} disabled={!canEdit || saving} onChange={(event) => setExpiryDate(event.target.value)} className="mt-1 block rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" /></label>{canEdit && <button type="button" onClick={() => void save()} disabled={!expiryDate || saving} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{saving ? "Salvando…" : "Salvar validade"}</button>}<p role="status" className="w-full text-xs text-slate-600">{message}</p></div>;
+  return <div className="flex flex-wrap items-end gap-3 rounded-lg bg-slate-50 p-3"><div className="min-w-40 flex-1"><p className="text-sm font-semibold text-slate-700">Lote {lot.batchNumber ?? "sem identificação"}</p><p className="text-xs text-slate-500">{lot.location} · {lot.quantity} {lot.unit}</p></div><label className="text-xs font-semibold text-slate-500">Validade<input type="text" inputMode="numeric" placeholder="dd/mm/aaaa" maxLength={10} required value={expiryDate} disabled={!canEdit || saving} onChange={(event) => setExpiryDate(maskBrazilianDate(event.target.value))} className="mt-1 block rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" /></label>{canEdit && <button type="button" onClick={() => void save()} disabled={expiryDate.length !== 10 || saving} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{saving ? "Salvando…" : "Salvar validade"}</button>}<p role="status" className="w-full text-xs text-slate-600">{message}</p></div>;
 }
 
