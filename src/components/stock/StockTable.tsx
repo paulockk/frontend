@@ -2,7 +2,7 @@ import { ArrowLeftRight, Eye, ShoppingCart } from "lucide-react";
 import { useState } from "react";
 import type { StockListItem } from "../../types/stock";
 
-const dateFormat = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeZone: "UTC" });
+const dateFormat = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" });
 interface Props { items: StockListItem[]; loading: boolean; onDetails?: (item: StockListItem) => void; onAction?: (item: StockListItem) => void }
 export function StockTable({ items, loading, onDetails, onAction }: Props) {
   const [selected, setSelected] = useState<StockListItem | null>(null);

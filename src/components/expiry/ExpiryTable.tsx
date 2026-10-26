@@ -2,9 +2,12 @@ import { useState } from "react";
 import { Check, Pencil, X } from "lucide-react";
 import { expiryService } from "../../services/expiry.service";
 import type { ExpiryLot } from "../../types/expiry";
+import { formatIsoDateAsBrazilian, maskBrazilianDate, parseBrazilianDate } from "../../utils/date";
 
 const dateFormat = new Intl.DateTimeFormat("pt-BR", {
-  dateStyle: "short",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
   timeZone: "UTC",
 });
 const currency = new Intl.NumberFormat("pt-BR", {
@@ -43,10 +46,15 @@ export function ExpiryTable({
   const [error, setError] = useState("");
 
   const saveExpiry = async (batchId: string) => {
+    const isoDate = parseBrazilianDate(draftDate);
+    if (!isoDate) {
+      setError("Digite uma data válida no formato dd/mm/aaaa.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
-      await expiryService.updateExpiryDate(batchId, draftDate);
+      await expiryService.updateExpiryDate(batchId, isoDate);
       setEditingId(null);
       onExpiryUpdated();
     } catch (cause) {
@@ -129,12 +137,12 @@ export function ExpiryTable({
                     </span>
                     {canEditExpiry && (editingId === lot.id ? (
                       <div className="flex items-center gap-1">
-                        <input aria-label={`Nova validade para o lote ${lot.batchNumber}`} type="date" value={draftDate} onChange={(event) => setDraftDate(event.target.value)} className="w-36 rounded border border-slate-200 px-2 py-1 text-xs" />
-                        <button type="button" aria-label="Salvar validade" disabled={!draftDate || saving} onClick={() => void saveExpiry(lot.id)} className="rounded bg-blue-600 p-1.5 text-white disabled:opacity-50"><Check className="h-3.5 w-3.5" /></button>
+                        <input aria-label={`Nova validade do lote ${lot.batchNumber} (dd/mm/aaaa)`} type="text" inputMode="numeric" placeholder="dd/mm/aaaa" maxLength={10} value={draftDate} onChange={(event) => setDraftDate(maskBrazilianDate(event.target.value))} className="w-28 rounded border border-slate-200 px-2 py-1 text-xs" />
+                        <button type="button" aria-label="Salvar validade" disabled={draftDate.length !== 10 || saving} onClick={() => void saveExpiry(lot.id)} className="rounded bg-blue-600 p-1.5 text-white disabled:opacity-50"><Check className="h-3.5 w-3.5" /></button>
                         <button type="button" aria-label="Cancelar edição" disabled={saving} onClick={() => { setEditingId(null); setError(""); }} className="rounded bg-slate-100 p-1.5 text-slate-600"><X className="h-3.5 w-3.5" /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => { setEditingId(lot.id); setDraftDate(lot.expiryDate.slice(0, 10)); setError(""); }} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"><Pencil className="h-3 w-3" />Editar validade</button>
+                      <button type="button" onClick={() => { setEditingId(lot.id); setDraftDate(formatIsoDateAsBrazilian(lot.expiryDate)); setError(""); }} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"><Pencil className="h-3 w-3" />Editar validade</button>
                     ))}
                     {editingId === lot.id && error && <p role="alert" className="max-w-40 text-xs text-red-600">{error}</p>}
                   </div>
