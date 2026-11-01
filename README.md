@@ -1,4 +1,4 @@
-﻿# Projeto Estoque Desktop
+# Projeto Estoque Desktop
 
 Aplicação React + Vite executável no navegador e como desktop via Electron.
 
