@@ -25,4 +25,5 @@ dist-ssr
 
 # Electron output
 release
+electron/backend
 
