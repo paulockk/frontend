@@ -30,8 +30,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   user = {
     name: "Carlos Eduardo",
     role: "Administrador",
-    avatarUrl:
-      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80",
+    avatarUrl: "/stockflow-favicon.svg",
     isOnline: true,
   },
   navItems = DEFAULT_NAV_ITEMS,

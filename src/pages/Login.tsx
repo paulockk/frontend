@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { apiFetch } from "../services/api";
 
 export default function Login() {
   const { user, loading, login } = useAuth();
@@ -9,6 +10,17 @@ export default function Login() {
   const prefillEmail = (location.state as { prefillEmail?: string } | null)?.prefillEmail ?? "";
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [setupRequired, setSetupRequired] = useState(false);
+  const [checkingSetup, setCheckingSetup] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    void apiFetch<{ setupRequired: boolean }>("/auth/setup-required")
+      .then((result) => { if (active) setSetupRequired(result.setupRequired); })
+      .catch(() => { if (active) setError("Não foi possível conectar à API local."); })
+      .finally(() => { if (active) setCheckingSetup(false); });
+    return () => { active = false; };
+  }, []);
 
   if (!loading && user) return <Navigate to="/dashboard" replace />;
 
@@ -18,6 +30,11 @@ export default function Login() {
     setSubmitting(true);
     const form = new FormData(event.currentTarget);
     try {
+      if (setupRequired) {
+        await apiFetch("/auth/setup", { method: "POST", body: JSON.stringify({
+          name: String(form.get("name")), email: String(form.get("email")), password: String(form.get("password")),
+        }) });
+      }
       await login(String(form.get("email")), String(form.get("password")));
       const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
       navigate(from || "/dashboard", { replace: true });
@@ -31,16 +48,20 @@ export default function Login() {
   return (
     <main className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
       <form onSubmit={handleSubmit} className="w-full max-w-sm bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-        <h1 className="text-xl font-semibold text-slate-800">Entrar no Stockflow</h1>
+        <h1 className="text-xl font-semibold text-slate-800">{setupRequired ? "Configurar Stockflow" : "Entrar no Stockflow"}</h1>
+        {setupRequired && <p className="text-sm text-slate-500">Crie a conta do administrador para começar. Ela ficará armazenada somente neste computador.</p>}
+        {setupRequired && <label className="block text-sm text-slate-600">Nome
+          <input name="name" autoComplete="name" required maxLength={120} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800" />
+        </label>}
         <label className="block text-sm text-slate-600">E-mail
           <input name="email" type="email" autoComplete="username" defaultValue={prefillEmail} required className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800" />
         </label>
         <label className="block text-sm text-slate-600">Senha
-          <input name="password" type="password" autoComplete="current-password" required className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800" />
+          <input name="password" type="password" autoComplete={setupRequired ? "new-password" : "current-password"} minLength={setupRequired ? 12 : undefined} required className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-800" />
         </label>
         {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-        <button disabled={submitting || loading} className="w-full rounded-md bg-blue-600 px-3 py-2 text-white disabled:opacity-60">
-          {submitting ? "Entrando..." : "Entrar"}
+        <button disabled={submitting || loading || checkingSetup} className="w-full rounded-md bg-blue-600 px-3 py-2 text-white disabled:opacity-60">
+          {submitting ? (setupRequired ? "Configurando..." : "Entrando...") : (setupRequired ? "Criar administrador" : "Entrar")}
         </button>
       </form>
     </main>

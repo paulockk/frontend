@@ -12,8 +12,7 @@ export const DEFAULT_GATEWAY_STATUS: GatewayStatus = {
 export const DEFAULT_HEADER_USER: HeaderUser = {
   name: "Carlos Eduardo",
   role: "Administrador",
-  avatarUrl:
-    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80",
+  avatarUrl: "/stockflow-favicon.svg",
   isOnline: true,
 };
 

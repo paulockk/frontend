@@ -5,7 +5,7 @@ import { renameDashboardLocationMock } from "./mocks/dashboard.mock";
 import type { CatalogProduct, MovementRecord, ProductStockLot, ReportCard, SaleTransaction, SalesReport, StoreLocation } from "../types/operations";
 
 // Replace mock responses with API endpoints as the backend modules become available.
-const USE_MOCK = true;
+const USE_MOCK = false;
 const USE_API_FOR_LOCATIONS = true;
 const USE_API_FOR_MOVEMENTS = true;
 const USE_API_FOR_PRODUCTS = true;

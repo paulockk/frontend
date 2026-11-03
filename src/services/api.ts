@@ -1,4 +1,5 @@
-const configuredApiUrl = import.meta.env.VITE_API_URL?.replace(/\/+$/, "");
+const desktopApiUrl = new URLSearchParams(window.location.search).get("api");
+const configuredApiUrl = (desktopApiUrl || import.meta.env.VITE_API_URL)?.replace(/\/+$/, "");
 const API_URL = !configuredApiUrl
   ? "http://127.0.0.1:3333/api/v1"
   : configuredApiUrl.endsWith("/api/v1")

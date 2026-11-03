@@ -32,6 +32,7 @@ export default function Configuracoes() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [backupBusy, setBackupBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [editing, setEditing] = useState<AccessProfile | null>(null);
@@ -88,6 +89,16 @@ export default function Configuracoes() {
       setNotice("Acesso atualizado. A conta precisa entrar novamente para receber as novas permissões.");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível atualizar a conta."); }
   };
+  const runBackupAction = async (action: "export" | "restore") => {
+    setError(""); setNotice(""); setBackupBusy(true);
+    try {
+      if (!window.desktop) throw new Error("Backup e restauração estão disponíveis no aplicativo desktop.");
+      const result = action === "export" ? await window.desktop.exportBackup() : await window.desktop.restoreBackup();
+      if (result.canceled) return;
+      setNotice(action === "export" ? "Backup exportado com sucesso." : "Backup restaurado; recarregando os dados.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível concluir a operação de backup."); }
+    finally { setBackupBusy(false); }
+  };
   if (user?.role !== "ADMIN") return <div className="p-6 text-sm text-slate-600">Esta área é exclusiva do administrador.</div>;
 
   return <div className="min-w-0 space-y-6 p-6">
@@ -112,6 +123,10 @@ export default function Configuracoes() {
       </section>
       <section className="space-y-3"><div className="flex items-center justify-between"><h2 className="text-lg font-bold text-slate-900">Contas e sócios</h2><span className="text-xs text-slate-500">{users.length} contas</span></div>
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white"><table className="w-full min-w-[760px] text-left text-sm"><thead className="border-b bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Pessoa</th><th className="px-3 py-3">Perfil</th><th className="px-3 py-3">Status</th><th className="px-4 py-3 text-right">Acesso</th></tr></thead><tbody className="divide-y divide-slate-100">{users.map((account) => <tr key={account.id}><td className="px-4 py-3"><p className="font-semibold text-slate-800">{account.name}</p><p className="text-xs text-slate-400">{account.email}</p></td><td className="px-3 py-3">{account.role === "ADMIN" ? "Administrador" : <select aria-label={"Perfil de " + account.name} value={account.accessProfileId ?? ""} onChange={(event) => void updateAccount(account, { accessProfileId: event.target.value })} className="rounded border border-slate-200 bg-white px-2 py-1.5 text-xs">{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</select>}</td><td className="px-3 py-3"><span className={"rounded-full px-2 py-1 text-xs font-semibold " + (account.isActive ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500")}>{account.isActive ? "Ativa" : "Inativa"}</span></td><td className="px-4 py-3 text-right">{account.role !== "ADMIN" && <button type="button" onClick={() => void updateAccount(account, { isActive: !account.isActive })} className="text-xs font-semibold text-blue-700 hover:text-blue-900">{account.isActive ? "Desativar" : "Ativar"}</button>}</td></tr>)}</tbody></table></div>
+      </section>
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+        <div><h2 className="font-bold text-slate-900">Backup local</h2><p className="mt-1 text-sm text-slate-500">Exporte uma cópia do banco ou restaure um backup válido do Stockflow.</p></div>
+        <div className="flex flex-wrap gap-2"><button type="button" disabled={backupBusy} onClick={() => void runBackupAction("export")} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50">Exportar backup</button><button type="button" disabled={backupBusy} onClick={() => void runBackupAction("restore")} className="rounded-lg border border-amber-300 px-3 py-2 text-sm font-semibold text-amber-800 disabled:opacity-50">Restaurar backup</button></div>
       </section>
     </>}
   </div>;
