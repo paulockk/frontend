@@ -47,13 +47,23 @@ function startBackend() {
   return new Promise((resolve, reject) => {
     let output = "";
     let errorOutput = "";
+    let backendReady = false;
     const startupError = (message) => {
       const details = errorOutput.trim().slice(-3000);
       return new Error(details ? `${message}\n\nDetalhes técnicos:\n${details}` : message);
     };
     const timeout = setTimeout(() => reject(startupError("A API local demorou para iniciar.")), 30000);
-    const finish = (error, port) => { clearTimeout(timeout); backendProcess.stdout.removeListener("data", onOutput); error ? reject(error) : resolve(port); };
+    const finish = (error, port) => {
+      clearTimeout(timeout);
+      if (error) backendProcess.stdout.removeListener("data", onOutput);
+      else backendReady = true;
+      error ? reject(error) : resolve(port);
+    };
     const onOutput = (chunk) => {
+      if (backendReady) {
+        console.log("[Stockflow API]", chunk.toString("utf8").trim());
+        return;
+      }
       output += chunk.toString("utf8");
       const match = output.match(/STOCKFLOW_READY:(\d+)/);
       if (match) finish(null, Number(match[1]));
