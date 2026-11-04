@@ -5,6 +5,7 @@ import { operationsService } from "../services/operations.service";
 import type { CatalogProduct, ProductStockLot, StoreLocation } from "../types/operations";
 import { QuickProductForm, quickFormToProduct, type QuickProductFormData } from "../components/products/QuickProductForm";
 import { VmPayImportDialog } from "../components/products/VmPayImportDialog";
+import { VmPayPlanogramImportDialog } from "../components/products/VmPayPlanogramImportDialog";
 import { useAuth } from "../contexts/AuthContext";
 import { useLocationFilter } from "../contexts/LocationFilterContext";
 import { expiryService } from "../services/expiry.service";
@@ -29,6 +30,7 @@ export default function Produtos() {
   const [category, setCategory] = useState("ALL");
   const [quickFormOpen, setQuickFormOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [planogramOpen, setPlanogramOpen] = useState(false);
   const [editing, setEditing] = useState<CatalogProduct | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkBrand, setBulkBrand] = useState("");
@@ -97,12 +99,14 @@ export default function Produtos() {
       <button type="button" onClick={() => { const csv = ["SKU;Código de barras;Produto;Categoria;Custo;Venda", ...filtered.map((p) => [p.sku,p.barcode,p.name,p.category,p.costPrice,p.salePrice].join(";"))].join("\n"); const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })); a.download = "produtos.csv"; a.click(); URL.revokeObjectURL(a.href); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700"><Download className="h-4 w-4"/>Exportar</button>
       {canManageProducts && <button type="button" onClick={() => { setBulkOpen((open) => !open); setNotice(null); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700"><Tags className="h-4 w-4"/>Editar preços em lote</button>}
       {canManageProducts && <button type="button" onClick={() => { setImportOpen(true); setNotice(null); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700"><Upload className="h-4 w-4"/>Importar VMpay</button>}
+      {canManageStock && <button type="button" onClick={() => { setPlanogramOpen(true); setNotice(null); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700"><Upload className="h-4 w-4"/>Atualizar máquina</button>}
       {canManageProducts && <button type="button" onClick={() => { setQuickFormOpen(true); setNotice(null); }} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white"><Plus className="h-4 w-4"/>Novo produto</button>}
     </div></header>
 
     <div className="grid gap-4 sm:grid-cols-3"><Metric icon={<Package className="h-4 w-4"/>} label="Produtos cadastrados" value={String(locationItems.length)} /><Metric label="Categorias" value={String(categories.length)} /><Metric label="Itens em revisão" value={String(locationItems.filter((p) => p.status === "REVIEW").length)} /></div>
     {quickFormOpen && <QuickProductForm onClose={() => setQuickFormOpen(false)} onSave={saveProduct} canSetInitialStock={canManageStock} />}
     {importOpen && <VmPayImportDialog products={items} locations={locations} onClose={() => setImportOpen(false)} onImported={(created) => { setItems((current) => [...created.filter((item) => !current.some((existing) => existing.id === item.id)), ...current.map((item) => created.find((updated) => updated.id === item.id) ?? item)]); setNotice(`${created.length} produto(s) importado(s) ou vinculados ao VMpay.`); }} />}
+    {planogramOpen && <VmPayPlanogramImportDialog products={items} locations={locations} onClose={() => setPlanogramOpen(false)} onComplete={() => { void Promise.all([operationsService.listProducts(), operationsService.listStockLots()]).then(([products, lots]) => { setItems(products); setStockLots(lots); setNotice("Saldo da máquina atualizado a partir do planograma."); }); }} />}
     {notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
 
     {bulkOpen && <form onSubmit={(event) => void applyBulkPrices(event)} className="grid gap-3 rounded-xl border border-blue-200 bg-white p-4 sm:grid-cols-4">
