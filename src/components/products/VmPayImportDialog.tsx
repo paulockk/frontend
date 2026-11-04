@@ -73,18 +73,30 @@ export function VmPayImportDialog({
       try {
         let saved: CatalogProduct;
         if (existing) {
-          const allLocations = [...new Set([...(existing.linkedLocationIds ?? []), ...targetLocations])];
-          await operationsService.assignProductLocations(existing.id, allLocations);
-          saved = { ...existing, linkedLocationIds: allLocations };
+          if (candidate.catalogOnly) {
+            saved = await operationsService.updateProduct({
+              ...existing,
+              name: candidate.name,
+              barcode: candidate.barcode || existing.barcode,
+              category: candidate.category || existing.category,
+              brand: candidate.brand || existing.brand,
+              costPrice: candidate.costPrice,
+              salePrice: candidate.salePrice,
+            });
+          } else {
+            const allLocations = [...new Set([...(existing.linkedLocationIds ?? []), ...targetLocations])];
+            await operationsService.assignProductLocations(existing.id, allLocations);
+            saved = { ...existing, linkedLocationIds: allLocations };
+          }
         } else {
           seen.add(key);
           const product: CatalogProduct = {
             id: "pending",
             sku: candidate.sku,
-            barcode: "",
+            barcode: candidate.barcode ?? "",
             name: candidate.name,
-            category: "Outros",
-            brand: "",
+            category: candidate.category || "Outros",
+            brand: candidate.brand ?? "",
             supplier: "",
             unit: "UN",
             tracksExpiration: trackExpiration,
@@ -124,7 +136,7 @@ export function VmPayImportDialog({
   return <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !importing) onClose(); }}>
     <section role="dialog" aria-modal="true" aria-labelledby="vmpay-import-title" className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
       <header className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
-        <div className="flex gap-3"><span className="rounded-xl bg-blue-50 p-2.5 text-blue-700"><FileSpreadsheet className="h-5 w-5" /></span><div><h2 id="vmpay-import-title" className="text-lg font-bold text-slate-900">Importar produtos do VMpay</h2><p className="mt-1 text-sm text-slate-500">Envie a exportação de itens para conferir os produtos antes de criar.</p></div></div>
+        <div className="flex gap-3"><span className="rounded-xl bg-blue-50 p-2.5 text-blue-700"><FileSpreadsheet className="h-5 w-5" /></span><div><h2 id="vmpay-import-title" className="text-lg font-bold text-slate-900">Importar produtos do VMpay</h2><p className="mt-1 text-sm text-slate-500">Envie o cadastro de produtos ou a exportação de itens para conferir antes de importar.</p></div></div>
         <button type="button" onClick={onClose} disabled={importing} aria-label="Fechar importação" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 disabled:opacity-50"><X className="h-5 w-5" /></button>
       </header>
       <div className="space-y-4 overflow-y-auto p-5">
@@ -144,7 +156,7 @@ export function VmPayImportDialog({
             const status = failure ? failure : candidate.issue ? candidate.issue : !isMapped(candidate) ? "Vincule os locais acima" : existing ? `Associar locais a ${existing.sku}` : "Pronto";
             return <tr key={candidate.sku}><td className="px-3 py-2.5"><p className="font-medium text-slate-800">{candidate.name}</p><p className="font-mono text-[11px] text-slate-400">{candidate.sku}</p></td><td className="px-3 py-2.5 text-right tabular-nums">{money.format(candidate.costPrice)}</td><td className="px-3 py-2.5 text-right tabular-nums">{money.format(candidate.salePrice)}</td><td className="px-3 py-2.5 text-right">{candidate.sourceRows}</td><td className={`max-w-xs px-3 py-2.5 text-xs ${failure || candidate.issue ? "text-amber-700" : "text-slate-500"}`}>{status}</td></tr>;
           })}</tbody></table></div>
-          <p className="text-xs leading-5 text-slate-500">Este arquivo não traz EAN, fornecedor, categoria ou validade. Os lotes serão identificados por máquina e canaleta; a validade pode ser editada depois. O SKU mostrado é gerado pelo Stockflow.</p>
+          <p className="text-xs leading-5 text-slate-500">{candidates[0]?.catalogOnly ? "Os dados de SKU, EAN, categoria, marca e preços serão aproveitados. Este cadastro não contém saldo; importe o planograma da máquina em seguida." : "Este arquivo não traz EAN, fornecedor, categoria ou validade. Os saldos são atualizados por máquina e canaleta; a validade pode ser editada depois. O SKU é gerado quando o arquivo não fornece um."}</p>
         </>}
         {importing && <div className="flex items-center gap-2 text-sm text-blue-700"><LoaderCircle className="h-4 w-4 animate-spin" />Importando {progress} de {candidates.length} registros...</div>}
       </div>

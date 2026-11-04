@@ -8,12 +8,38 @@ export interface VmPayProductCandidate {
   sourceRows: number;
   sourceLocations: string[];
   stockLots: Array<{ sourceLocation: string; batchNumber: string; quantity: string }>;
+  barcode?: string;
+  brand?: string;
+  category?: string;
+  catalogOnly?: boolean;
   issue?: string;
 }
 
 export interface VmPayProductImportPreview {
   candidates: VmPayProductCandidate[];
   totalRows: number;
+}
+
+export interface VmPayPlanogramLine {
+  channel: string;
+  productCode: string;
+  productName: string;
+  status: string;
+  capacity: number;
+  parLevel: number;
+  alertLevel: number;
+  minimumLevel: number;
+  salePrice: number;
+  quantity: number;
+  missing: string;
+}
+
+export interface VmPayPlanogramPreview {
+  machine: string;
+  client: string;
+  local: string;
+  reportDate: string;
+  lines: VmPayPlanogramLine[];
 }
 
 const normalize = (value: string) => value
@@ -155,16 +181,48 @@ function candidatesFromRows(rows: unknown[][]): VmPayProductImportPreview {
   }
   const headers = rows[headerIndex]!.map((value) => normalizeHeader(String(value ?? "")));
   const nameIndex = headers.indexOf("produto");
+  const saleIndex = headers.indexOf("precodesejado");
+  const costIndex = headers.findIndex((header) => costPriceHeaders.includes(header));
   const locationIndex = headers.indexOf("local");
   const machineIndex = headers.indexOf("maquina");
   const channelIndex = headers.indexOf("canaleta");
   const quantityIndex = headers.indexOf("quantidade");
+  const catalogOnly = [locationIndex, machineIndex, channelIndex, quantityIndex].some((index) => index < 0);
+  if (catalogOnly) {
+    const skuIndex = headers.indexOf("skunovo");
+    const categoryIndex = headers.indexOf("categoria");
+    const brandIndex = headers.findIndex((header) => header === "marca" || header === "fabricante" || header === "marcafabricante");
+    const barcodeIndex = headers.findIndex((header) => header === "eaninformado" || header === "ean" || header === "codigodebarras");
+    const candidates: VmPayProductCandidate[] = [];
+    let totalRows = 0;
+    for (const row of rows.slice(headerIndex + 1)) {
+      const name = String(row[nameIndex] ?? "").trim();
+      if (!name) continue;
+      totalRows += 1;
+      const costPrice = parsePrice(row[costIndex]);
+      const salePrice = parsePrice(row[saleIndex]);
+      candidates.push({
+        sku: String(row[skuIndex] ?? "").trim() || makeSku(name),
+        name,
+        costPrice: costPrice ?? 0,
+        salePrice: salePrice ?? 0,
+        sourceRows: 1,
+        sourceLocations: [],
+        stockLots: [],
+        barcode: String(row[barcodeIndex] ?? "").trim(),
+        brand: String(row[brandIndex] ?? "").trim(),
+        category: String(row[categoryIndex] ?? "").trim(),
+        catalogOnly: true,
+        ...((costPrice === null || salePrice === null) ? { issue: "Preço de custo ou preço desejado ausente; revise esta linha antes de importar." } : {}),
+      });
+    }
+    if (!candidates.length) throw new Error("Não encontrei produtos no cadastro de produtos do VMpay.");
+    return { totalRows, candidates };
+  }
   if ([locationIndex, machineIndex, channelIndex, quantityIndex].some((index) => index < 0)) {
     throw new Error("A exportação precisa conter Local, Máquina, Canaleta e Quantidade para gerar os lotes por local.");
   }
   const dateIndexes = [headers.indexOf("datadeaplicacao"), headers.indexOf("datadeatualizacao"), headers.indexOf("datadecadastro")].filter((index) => index >= 0);
-  const saleIndex = headers.indexOf("precodesejado");
-  const costIndex = headers.findIndex((header) => costPriceHeaders.includes(header));
   const latestChannels = new Map<string, { name: string; costPrice: number | null; salePrice: number | null; sourceLocation: string; machine: string; channel: string; quantity: number; date: number; sourceRow: number }>();
   let totalRows = 0;
   let invalidChannelRow: number | null = null;
@@ -244,8 +302,74 @@ export async function parseVmPayProductFile(file: File): Promise<VmPayProductImp
   return candidatesFromRows(await readVmPayTabularFile(file));
 }
 
+export async function parseVmPayPlanogramFile(file: File): Promise<VmPayPlanogramPreview> {
+  const rows = await readVmPayTabularFile(file);
+  const headerIndex = rows.findIndex((row) => {
+    const headers = row.map((value) => normalizeHeader(String(value ?? "")));
+    return headers.includes("canaleta") && headers.includes("produto")
+      && headers.includes("capacidade") && headers.includes("quantidade");
+  });
+  if (headerIndex < 0) {
+    throw new Error("Não encontrei as colunas de canaleta, produto, capacidade e quantidade do planograma VMpay.");
+  }
+
+  const metadata = new Map<string, string>();
+  for (const row of rows.slice(0, headerIndex)) {
+    const key = normalizeHeader(String(row[0] ?? ""));
+    const value = String(row[1] ?? "").trim();
+    if (key && value) metadata.set(key, value);
+  }
+
+  const headers = rows[headerIndex]!.map((value) => normalizeHeader(String(value ?? "")));
+  const index = (name: string) => headers.indexOf(name);
+  const required = ["canaleta", "produto", "estado", "capacidade", "quantidade"];
+  if (required.some((name) => index(name) < 0)) {
+    throw new Error("O planograma está sem uma ou mais colunas necessárias para importar o saldo da máquina.");
+  }
+  const readNumber = (row: unknown[], name: string, allowEmpty = false) => {
+    const value = String(row[index(name)] ?? "").trim();
+    if (allowEmpty && !value) return 0;
+    const parsed = parsePrice(value);
+    if (parsed === null) throw new Error(`O valor da coluna ${name} não é válido.`);
+    return parsed;
+  };
+  const lines: VmPayPlanogramLine[] = [];
+  for (const [offset, row] of rows.slice(headerIndex + 1).entries()) {
+    const productName = String(row[index("produto")] ?? "").trim();
+    if (!productName) continue;
+    const channel = String(row[index("canaleta")] ?? "").trim();
+    const status = String(row[index("estado")] ?? "").trim();
+    if (!channel || !status) throw new Error(`A linha ${headerIndex + offset + 2} não informa canaleta ou estado.`);
+    lines.push({
+      channel,
+      productCode: String(row[index("codigo")] ?? "").trim(),
+      productName,
+      status,
+      capacity: readNumber(row, "capacidade"),
+      parLevel: readNumber(row, "niveldepar", true),
+      alertLevel: readNumber(row, "niveldealerta", true),
+      minimumLevel: readNumber(row, "nivelminimo", true),
+      salePrice: readNumber(row, "precors", true),
+      quantity: readNumber(row, "quantidade"),
+      missing: String(row[index("faltam")] ?? "").trim(),
+    });
+  }
+  if (!lines.length) throw new Error("Não encontrei produtos no planograma.");
+  const reportDate = metadata.get("data") ?? "";
+  const machine = metadata.get("maquina") ?? "";
+  if (!machine) throw new Error("Não encontrei o número da máquina no cabeçalho do planograma.");
+  return {
+    machine,
+    client: metadata.get("cliente") ?? "",
+    local: metadata.get("local") ?? "",
+    reportDate,
+    lines,
+  };
+}
+
 export function findExistingProduct(candidate: VmPayProductCandidate, products: CatalogProduct[]): CatalogProduct | undefined {
   const candidateName = normalize(candidate.name);
   return products.find((product) => product.sku.toLocaleUpperCase() === candidate.sku
+    || Boolean(candidate.barcode && product.barcode === candidate.barcode)
     || normalize(product.name) === candidateName);
 }
