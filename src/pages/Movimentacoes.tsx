@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, ClipboardList, Plus, Search } from "lucide-react";
+import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, ClipboardList, Plus, Search, Upload } from "lucide-react";
 import { operationsService } from "../services/operations.service";
 import { useLocationFilter } from "../contexts/LocationFilterContext";
 import type { CatalogProduct, MovementRecord, StoreLocation } from "../types/operations";
+import { useAuth } from "../contexts/AuthContext";
+import { VmPayPicklistImportDialog } from "../components/movements/VmPayPicklistImportDialog";
 
 const labels: Record<MovementRecord["type"], string> = { ENTRY: "Entrada", EXIT: "Saída", TRANSFER: "Transferência", ADJUSTMENT: "Ajuste" };
 const date = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" });
@@ -20,15 +22,31 @@ export default function Movimentacoes() {
   const [wholeBatch, setWholeBatch] = useState(false);
   const [selectedSku, setSelectedSku] = useState("");
   const [formOpen, setFormOpen] = useState(false);
+  const [picklistImportOpen, setPicklistImportOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const { matchesLocation } = useLocationFilter();
+  const { user } = useAuth();
+  const canManageStock = user?.role === "ADMIN" || Boolean(user?.permissions.includes("stock.manage"));
+
+  const loadData = useCallback(() => Promise.all([
+      operationsService.listMovements(), operationsService.listProducts(), operationsService.listLocations(),
+  ]), []);
+  const refreshData = async () => {
+    const [movementItems, productItems, locationItems] = await loadData();
+    setItems(movementItems);
+    setProducts(productItems);
+    setLocations(locationItems.filter((location) => location.status === "ACTIVE"));
+  };
 
   useEffect(() => {
-    void Promise.all([operationsService.listMovements(), operationsService.listProducts(), operationsService.listLocations()])
-      .then(([movementItems, productItems, locationItems]) => { setItems(movementItems); setProducts(productItems); setLocations(locationItems.filter((location) => location.status === "ACTIVE")); })
+    void loadData().then(([movementItems, productItems, locationItems]) => {
+        setItems(movementItems);
+        setProducts(productItems);
+        setLocations(locationItems.filter((location) => location.status === "ACTIVE"));
+      })
       .catch(() => setError("Não foi possível carregar os dados das movimentações."));
-  }, []);
+  }, [loadData]);
   useEffect(() => { setSearch(searchParams.get("search") ?? ""); }, [searchParams]);
 
   const filtered = useMemo(() => items.filter((movement) => matchesLocation(movement.origin) || matchesLocation(movement.destination)).filter((movement) => (type === "ALL" || movement.type === type) && `${movement.productName} ${movement.sku} ${movement.batch}`.toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR"))), [items, type, search, matchesLocation]);
@@ -48,7 +66,8 @@ export default function Movimentacoes() {
   };
 
   return <div className="min-w-0 space-y-6 p-6">
-    <header className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Rastreabilidade · CD e unidades</p><h1 className="mt-1 text-2xl font-bold text-slate-900">Movimentações de estoque</h1><p className="mt-1 text-sm text-slate-500">Acompanhe entradas, saídas, transferências e ajustes por lote.</p></div><button type="button" onClick={() => { setFormOpen(true); setSelectedSku(""); setError(""); }} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white"><Plus className="h-4 w-4"/>Nova movimentação</button></header>
+    <header className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Rastreabilidade · CD e unidades</p><h1 className="mt-1 text-2xl font-bold text-slate-900">Movimentações de estoque</h1><p className="mt-1 text-sm text-slate-500">Acompanhe entradas, saídas, transferências e ajustes por lote.</p></div><div className="flex flex-wrap gap-2">{canManageStock && <button type="button" onClick={() => { setPicklistImportOpen(true); setError(""); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700"><Upload className="h-4 w-4"/>Importar picklists VMpay</button>}{canManageStock && <button type="button" onClick={() => { setFormOpen(true); setSelectedSku(""); setError(""); }} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white"><Plus className="h-4 w-4"/>Nova movimentação</button>}</div></header>
+    {picklistImportOpen && <VmPayPicklistImportDialog products={products} locations={locations} onClose={() => setPicklistImportOpen(false)} onComplete={() => { void refreshData(); setNotice("Picklists importados; estoque transferido para as máquinas."); }} />}
     {notice && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
     {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {formOpen && <form onSubmit={(event) => void create(event)} className="grid gap-3 rounded-xl border border-blue-200 bg-white p-4 sm:grid-cols-3">
