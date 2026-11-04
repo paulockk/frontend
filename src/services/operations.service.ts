@@ -24,6 +24,7 @@ type ApiMovement = {
   id: string; type: MovementRecord["type"]; sku: string; productName: string;
   quantity: string; unit: string; batchNumber: string | null; performedBy: string; createdAt: string;
   location: string | null; sourceLocation: string | null; destinationLocation: string | null;
+  note: string | null;
 };
 type ApiProductLot = { batchId: string; productId: string; sku: string; productName: string; locationId: string; location: string; batchNumber: string | null; quantity: string; unit: string; expiryDate: string | null };
 type ApiSale = { id: string; externalSystem: string; receipt: string; date: string; location: string; items: string; payment: string; total: string; status: SaleTransaction["status"]; stockApplied: boolean };
@@ -259,6 +260,7 @@ export const operationsService = {
       body: JSON.stringify({
         name: product.name,
         brand: product.brand || null,
+        barcode: product.barcode || null,
         supplier: product.supplier || null,
         minimumStock: product.minimumStock || null,
         categoryId,
@@ -414,7 +416,7 @@ export const operationsService = {
         (_, index) => apiFetch<{ items: Array<{ batchId: string; batchNumber: string | null; quantity: string }> }>(`/stock/lots?${lotQuery.toString().replace("page=1", `page=${index + 2}`)}`),
       ));
       const sourceBatch = [firstLots, ...otherLotPages].flatMap((page) => page.items)
-        .find((lot) => !movement.batch || movement.batch === "—" || lot.batchNumber === movement.batch);
+        .find((lot) => movement.batchId ? lot.batchId === movement.batchId : !movement.batch || movement.batch === "—" || lot.batchNumber === movement.batch);
       if (!sourceBatch) throw new Error("Não há lote compatível com o produto e local selecionados.");
       const quantity = movement.quantity === 0 ? Number(sourceBatch.quantity) : movement.quantity;
       if (quantity <= 0) throw new Error("O lote selecionado não tem saldo disponível.");
@@ -422,11 +424,11 @@ export const operationsService = {
       created.quantity = quantity;
       if (movement.type === "TRANSFER") {
         if (!destination) throw new Error("Selecione um local de destino válido.");
-        const response = await apiFetch<{ transfer: { id: string; createdAt: string; batchNumber: string | null } }>("/stock/transfers", {
+        const response = await apiFetch<{ transfer: { id: string; createdAt: string; batchNumber: string | null; sourceBatchId: string } }>("/stock/transfers", {
           method: "POST",
-          body: JSON.stringify({ sourceBatchId: sourceBatch.batchId, destinationLocationId: destination.id, quantity: String(quantity) }),
+          body: JSON.stringify({ sourceBatchId: sourceBatch.batchId, destinationLocationId: destination.id, quantity: String(quantity), note: movement.note ?? null }),
         });
-        return { ...movement, quantity, id: response.transfer.id, date: response.transfer.createdAt, batch: response.transfer.batchNumber ?? "—", user: "Usuário autenticado", status: "COMPLETED" };
+        return { ...movement, quantity, id: response.transfer.id, date: response.transfer.createdAt, batch: response.transfer.batchNumber ?? "—", batchId: response.transfer.sourceBatchId, user: "Usuário autenticado", status: "COMPLETED" };
       }
       const response = await apiFetch<{ movement: { id: string; createdAt: string; batchNumber: string | null } }>("/stock/movements", {
         method: "POST",
@@ -498,6 +500,7 @@ export const operationsService = {
       origin: movement.sourceLocation ?? (movement.type === "EXIT" ? movement.location : null),
       destination: movement.destinationLocation ?? (movement.type === "ENTRY" ? movement.location : null),
       batch: movement.batchNumber ?? "—",
+      note: movement.note,
       user: movement.performedBy,
       status: "COMPLETED",
     }));
